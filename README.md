@@ -1,7 +1,7 @@
 # arms
 
  **Table of contents:**
-- [System Description](#sytem-description)
+- [System Description](#system-description)
 
 The project scope is to develop a self-healing system for Radio Base Stations (RBS) developed by Ericsson. 
 
