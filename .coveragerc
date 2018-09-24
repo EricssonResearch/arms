@@ -1,0 +1,8 @@
+[report]
+# Show missing lines.
+show_missing = True
+
+# Specify files to leave out of reporting.
+omit =
+	arms/__init__.py
+    arms/__main__.py
