@@ -8,7 +8,7 @@ setup(
     name='arms',
     version='0.1.0',
     license='Apache-2.0',
-    description='Managing the task of replacing a malfunction SFP module.',
+    description='Managing the task of replacing a malfunctioning SFP module.',
     author='HK team 2018',
 
     packages=find_packages(),
