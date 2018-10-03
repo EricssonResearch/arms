@@ -2,6 +2,6 @@
 
 
 def main():
-    """Add description."""
+    """Initialization routine."""
     print('Hello world!')
     return 1
