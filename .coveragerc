@@ -7,3 +7,4 @@ omit =
 	arms/__init__.py
     arms/__main__.py
     arms/config/__init__.py
+    arms/utils/__init__.py
