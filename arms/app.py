@@ -2,7 +2,7 @@
 
 from arms.config import config
 from arms.utils import log
-
+from arms.uart.Arduino_RPI_communication import Arduino
 
 def main():
     """Main routine."""
@@ -17,3 +17,12 @@ def initialization():
         log.config.warning("{}.".format(config.var.error))
     if log.ERROR:
         log.log.warning('Could not find settings in config.')
+        
+    a = Arduino()
+    print(a.port)
+    
+    a.connect()
+    
+    
+    
+    print("printing in app.py - final line")

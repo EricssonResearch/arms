@@ -6,21 +6,22 @@
     "console": {
       "level": "warning"
     }
-  }
+  },
   
   
   
   "uart_config": {
-    "port" : "/dev/ttyAMA0",
+    "port" : "COM3",
     "baudrate": 9600,
     "bytesize": 8,
-    "parity": 'N',
+    "parity": "N",
     "stopbits": 1,
     "timeout": 2,             
-    "xonxoff":False,                
-    "rtscts": False,                 
-    "dsrdtr":False ,                
-    "writeTimeout": 2              
+    "xonxoff":0,                
+    "rtscts": 0,                 
+    "dsrdtr":0 ,                
+    "writeTimeout": 2,
+    "sleeptime": 0.1,              
   
   }
 }

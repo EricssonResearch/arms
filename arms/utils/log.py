@@ -71,5 +71,6 @@ def get_logger(name):
 
 # The different loggers used (alphabetical order).
 app = get_logger('app')
+ard_log = get_logger('ard_log')
 config = get_logger('config')
 log = get_logger('log')

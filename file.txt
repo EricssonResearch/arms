@@ -1,0 +1,13 @@
+COM3
+except serial.SerialException as e
+printing in app.py - final line
+[4;33mReloaded modules[24m: arms, arms.app, arms.config, arms.config.config, arms.utils, arms.utils.log, arms.uart, arms.uart.Arduino_RPI_communication[0m
+COM3
+except serial.SerialException as e
+printing in app.py - final line
+[4;33mReloaded modules[24m: arms, arms.app, arms.config, arms.config.config, arms.utils, arms.utils.log, arms.uart, arms.uart.Arduino_RPI_communication[0m
+COM3
+printing in app.py - final line
+[4;33mReloaded modules[24m: arms, arms.app, arms.config, arms.config.config, arms.utils, arms.utils.log, arms.uart, arms.uart.Arduino_RPI_communication[0m
+[4;33mReloaded modules[24m: arms, arms.config, arms.config.config, arms.utils, arms.utils.log, arms.uart[0m
+test
