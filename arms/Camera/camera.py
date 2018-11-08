@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 from collections import Counter
 import datetime
+import arms.utils.log as log
 
 class Camera:
 	"""
@@ -20,7 +21,7 @@ class Camera:
 		self.camera.rotation = 180
 		self.camera.zoom = (0.25, 0.25, 0.4, 0.4)
 		self.raw = PiRGBArray(self.camera)
-		print("Camera initialized!")
+		log.camera.info("Camera initialized!")
 		sleep(1)
 		
 	"""
@@ -36,8 +37,8 @@ class Camera:
 		
 		img = cv2.imread('2018-10-01 15:13:49.347220.jpg')
 		if img is None:  
-			print('Failed to load image file:')
-			sys.exit(1)
+			log.camera.warning('Failed to load image file.')
+			return
 		filename = str(datetime.datetime.now()) + ".jpg"
 		cv2.imwrite(filename,img)	#Saves the image for potential later use
 		gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)	#converts to grayscale
@@ -65,7 +66,7 @@ class Camera:
 						thetaHor.append(theta)
 						rhoHor.append(rho)
 		else:
-			print("No lines found")
+			log.camera.warning("No lines found")
 			return None
 		"""
 		The following code take the second most common angle to make sure that
@@ -150,7 +151,8 @@ class Camera:
 
 		div = det(xdiff, ydiff)
 		if div == 0:
-		   raise Exception('lines do not intersect')
+			log.camera.warning("lines (" + str(xdiff[0]) + ", " + str(ydiff[0]) + " and (" + str(xdiff[1]) + ", " + str(ydiff[1]) + ") do not intersect")
+			raise Exception('lines do not intersect')
 
 		d = (det(*line1), det(*line2))
 		x = det(d, xdiff) / div

@@ -1,7 +1,8 @@
 """Initialization of arms."""
 
-from arms.config import config
-from arms.utils import log
+import arms.config.config as config
+import arms.utils.log as log
+from arms.arduino.arduino import Arduino
 
 
 def main():

@@ -73,3 +73,5 @@ def get_logger(name):
 app = get_logger('app')
 config = get_logger('config')
 log = get_logger('log')
+camera = get_logger('camera')
+ard_log = get_logger('ard_log')
