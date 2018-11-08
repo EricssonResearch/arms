@@ -7,4 +7,20 @@
       "level": "warning"
     }
   }
+  
+  
+  
+  "uart_config": {
+    "port" : "/dev/ttyAMA0",
+    "baudrate": 9600,
+    "bytesize": 8,
+    "parity": 'N',
+    "stopbits": 1,
+    "timeout": 2,             
+    "xonxoff":False,                
+    "rtscts": False,                 
+    "dsrdtr":False ,                
+    "writeTimeout": 2              
+  
+  }
 }
