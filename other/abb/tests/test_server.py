@@ -1,6 +1,6 @@
 """Tests for the module server.mod running on an ABB robot/controller.
 
-Quick Setup/ Run tests:
+Quick Setup/ Run tests locally:
     - Start ABB RobotStudio.
     - Create an empty station (File -> New -> Empty station).
     - Place a robot (Home -> Tab 'Build Station' -> ABB Library -> Select a
@@ -66,7 +66,7 @@ def recv(s):
 
 
 @pytest.fixture(scope="class")
-def server():
+def client():
     """Connects with the ABB robot and closes the socket once all tests are
     completed in the respective class.
     """
@@ -96,14 +96,14 @@ class TestExchangeOfMessages:
         (b"21\n[1,0,0,0,0,0,0,0,0,0]21\n[1,0,0,0,0,0,0,0,0,0]", 2,
          [[1, True], [1, True]]),
     ])
-    def test_correct(self, server, msg, no, expected):
+    def test_correct(self, client, msg, no, expected):
         """WHEN a message of expected form is given to the ABB robot,
         THEN the ABB robot shall respond with ok = True and the returned id
         number shall equal the given id number.
         """
-        server.send(msg)
+        client.send(msg)
         for idx in range(no):
-            received = recv(server)
+            received = recv(client)
             assert received == expected[idx]
 
 
@@ -112,13 +112,13 @@ class TestExchangeOfMessages:
         (b"24\n[1000,0,0,0,0,0,0,0,0,0]24\n[1000,0,0,0,0,0,0,0,0,0]", 2,
          [[-1, False], [-1, False]]),
     ])
-    def test_no_respective_case(self, server, msg, no, expected):
+    def test_no_respective_case(self, client, msg, no, expected):
         """IF there is no case belonging to an id number, THEN the ABB robot
         shall respond with id = -1 and ok = False.
         """
-        server.send(msg)
+        client.send(msg)
         for idx in range(no):
-            received = recv(server)
+            received = recv(client)
             assert received == expected[idx]
 
 
@@ -129,14 +129,14 @@ class TestExchangeOfMessages:
         (b"\n[0,1,2,3,4,5,6,7,8,9]", [-2, False]),
         (b"a\n[0,1,2,3,4,5,6,7,8,9]", [-2, False]),
     ])
-    def test_wrong_length(self, server, msg, expected):
+    def test_wrong_length(self, client, msg, expected):
         """IF the given length l of the original message exceeds the
         bounds 0 < l <= 80, or the given length can not be read/ casted
         into a number, THEN the ABB robot shall respond with id = -2 and ok
         = False.
         """
-        server.send(msg)
-        received = recv(server)
+        client.send(msg)
+        received = recv(client)
         assert received == expected
 
 
@@ -150,7 +150,7 @@ class TestExchangeOfMessages:
         (b"3\n123", [-3, False]),
         (b"10\n[1,0,0]21\n[1,0,0,0,0,0,0,0,0,0]", [-3, False]),
     ])
-    def test_wrong_array(self, server, msg, expected):
+    def test_wrong_array(self, client, msg, expected):
         """IF the given original message can not be casted into an array,
         and the error code {-2} does not apply, THEN the ABB robot shall
         respond with id = -3 and ok = False.
@@ -163,21 +163,21 @@ class TestExchangeOfMessages:
               length of the first one is greater than the actual length of
               the original message.
         """
-        server.send(msg)
-        received = recv(server)
+        client.send(msg)
+        received = recv(client)
         assert received == expected
 
 
     @pytest.mark.parametrize("msg, expected", [
         (b"30\n[0,1,2,3,4,5,6,7,8,9]", [-4, False]),
     ])
-    def test_discrepancy_length(self, server, msg, expected):
+    def test_discrepancy_length(self, client, msg, expected):
         """IF the given length is greater than the actual length of the
         original message, and the error codes {-2, -3} do not apply, THEN
         the ABB robot shall respond with id = -4 and ok = False.
         """
-        server.send(msg)
-        received = recv(server)
+        client.send(msg)
+        received = recv(client)
         assert received == expected
 
 
@@ -188,15 +188,15 @@ class TestExchangeOfMessages:
         (b"22\n[-4,0,0,0,0,0,0,0,0,0]", 1, [[-5, False]]),
         (b"22\n[-5,0,0,0,0,0,0,0,0,0]", 1, [[-5, False]]),
     ])
-    def test_negative_id(self, server, msg, no, expected):
+    def test_negative_id(self, client, msg, no, expected):
         """IF the given id number is below zero, and the error codes {-2,
         -3, -4} do not apply, THEN the ABB robot shall respond with id = -5
         and ok = False.
         Reason: id numbers below zero (<0) are reserved for error codes.
         """
-        server.send(msg)
+        client.send(msg)
         for idx in range(no):
-            received = recv(server)
+            received = recv(client)
             assert received == expected[idx]
 
 
@@ -208,32 +208,32 @@ class TestExchangeOfMessages:
         (b"8\n[1,0,0]21\n[1,0,0,0,0,0,0,0,0,0]", 2, [[-3, False], [-3, False]]),
         (b"21\n[1,0,0,0,0,0,0,0,0,0]7\n[1,0,0]", 2, [[1, True], [-3, False]]),
     ])
-    def test_mix(self, server, msg, no, expected):
+    def test_mix(self, client, msg, no, expected):
         """IF the given message contains several command requests with correct
         message length and delimiter, THEN all command requests shall be
         processed correctly with respect to the error codes.
         """
-        server.send(msg)
+        client.send(msg)
         for idx in range(no):
-            received = recv(server)
+            received = recv(client)
             assert received == expected[idx]
 
 
-    def test_no_delimiter(self, server):
+    def test_no_delimiter(self, client):
         """When the given message does not contain the expected delimiter '\n',
         the ABB robot shall keep listening for new messages."""
         # A message that does not contain the expected delimiter '\n'.
         msg = b"21[1,0,0,0,0,0,0,0,0,0]"
-        server.send(msg)
-        server.settimeout(1)
+        client.send(msg)
+        client.settimeout(1)
         with pytest.raises(socket.timeout):
-            recv(server)
-        server.settimeout(None)
+            recv(client)
+        client.settimeout(None)
 
         # A new (correct) message.
         msg = b"21\n[1,0,0,0,0,0,0,0,0,0]"
-        server.send(msg)
-        received = recv(server)
+        client.send(msg)
+        received = recv(client)
         assert received == [1, True]
 
 
