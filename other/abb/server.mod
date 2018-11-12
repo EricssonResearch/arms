@@ -1,5 +1,5 @@
 MODULE server
-    !***********************************************************
+    !********************************************************************************************************
     !
     ! Module:  server
     !
@@ -38,7 +38,7 @@ MODULE server
     !               <delimiter> = <d> = \n = \0A
     !               <original message> = <m> = [0,1,2,3,4,5,6,7,8,9]
     !                   ->	id = 0, which will close the current connection; see below (TEST -
-	!					CASE instruction).
+	!						CASE instruction).
     !                   ->	The remaining entries (1-9) can be arbitrary in this case, since they
 	!					    are not needed to close the connection. But because an array of size 10
 	!					    is expected, they have to be filled out.
@@ -50,20 +50,26 @@ MODULE server
     !
     !       - 	After a message is sent to and fulfilled by the ABB robot, the ABB robot sends an
 	!			answer to the client if respond = TRUE.
-    !           -> 	The message is in JSON format with the entries:
+    !           ->  The message is of the same format as described above, <l><d><m>.
+    !           -> 	The original message is in JSON format with the entries:
     !
     !                   {'id':<id number>,'ok':<bool>,'data': <array of variable size>}
     !
     !               , where
     !
-    !                   <id number>:    If the received message does not contain any errors, this id
-	!									number equals the id number in the received message.
-	!									Otherwise it represents an error code (negative number).
-    !                   <ok>:	If equals 0, an error occurred during the operation, otherwise not.
+    !                   <id number> = id:   If the received message does not contain any errors, this id
+	!									    number equals the id number in the received message.
+	!									    Otherwise it represents an error code (negative number).
+    !                   <ok> = ok_string:	If equals 0, an error occurred during the operation,
+    !                                       otherwise not.
     !                   <array of variable size>:	Represents the data to send back to the client.
-	!												Can be of variable size; the content depends on
+	!					= send_data					Can be of variable size; the content depends on
 	!												the executed case and therefore the id number in
-    !                                               the received message.
+    !                                               the received message. Strings have to be marked
+    !                                               with a pipe '|', e.g. send_data := "|string|"; or
+    !                                               send_data := "|" + var_string + "|";
+    !                                               where 'var_string' is a variable of type string.
+    !                                               For numbers use the internal function NumToStr.
     !
     ! For more details visit: https://github.com/EricssonResearch/arms
     !
@@ -71,7 +77,7 @@ MODULE server
     !
     ! Version: 0.7
     !
-    !***********************************************************
+    !********************************************************************************************************
 
 
     !******************
@@ -140,10 +146,12 @@ MODULE server
         !
         !   --- Sending a message to the remote computer. ---
         !   respond: If TRUE, a answer/respond message will be send, otherwise not.
-        !   send_length: The length of 'send_string' which has to be send beforehand.
-        !   send_string: The original message to send.
+        !   total_length: The summed length of 'send_beg', 'send_data' and 'send_end'.
+        !   send_total_length: Contains the length 'total_length' and the delimiter, which has to be send beforehand.
+        !   send_beg: The beginning of the original message to send.
+        !   send_data: The data cotained in the original message to send, separated by a comma; max. 80 bytes.
+        !   send_end: The ending of the original message to send.
         !   ok_string: Represents the boolean variable 'ok' as a string; 0 = FALSE, 1 = TRUE.
-        !   data_string: The data to send, separated by a comma.
         !
         !   --- Other. ---
         !   joints_pose: Represents the current joint pose/coordinates.
@@ -155,10 +163,12 @@ MODULE server
         VAR num id;
 
         VAR bool respond;
-        VAR string send_length;
-        VAR string send_string;
+        VAR num total_length;
+        VAR string send_total_length;
+        VAR string send_beg;
+        VAR string send_data;
+        VAR string send_end;
         VAR string ok_string;
-        VAR string data_string;
 
         VAR jointtarget joints_pose;
 
@@ -173,7 +183,7 @@ MODULE server
             length_string := "";
             length := 0;
             respond := TRUE;
-            data_string := "";
+            send_data := "";
 
             !----------------------------------------------------
             !Receive data from the socket (client) in two steps.
@@ -242,19 +252,19 @@ MODULE server
 
                 CASE 1: !Get system informations.
                     TPWrite "SERVER: Send sytem information to client.";
-                    data_string := GetSysInfo(\SerialNo) + ", ";
-                    data_string := data_string + GetSysInfo(\SWVersion) + ", ";
-                    data_string := data_string + GetSysInfo(\RobotType);
+                    send_data := "|" + GetSysInfo(\SerialNo) + "|, ";
+                    send_data := send_data + "|" + GetSysInfo(\SWVersion) + "|, ";
+                    send_data := send_data + "|" + GetSysInfo(\RobotType) + "|";
 
                 CASE 10: !Get joint coordinates.
                     TPWrite "SERVER: Send joint coordinates to client.";
                     joints_pose := CJointT();
-                    data_string := NumToStr(joints_pose.robax.rax_1,2) + ", ";
-                    data_string := data_string + NumToStr(joints_pose.robax.rax_2,2) + ", ";
-                    data_string := data_string + NumToStr(joints_pose.robax.rax_3,2) + ", ";
-                    data_string := data_string + NumToStr(joints_pose.robax.rax_4,2) + ", ";
-                    data_string := data_string + NumToStr(joints_pose.robax.rax_5,2) + ", ";
-                    data_string := data_string + NumToStr(joints_pose.robax.rax_6,2);
+                    send_data := NumToStr(joints_pose.robax.rax_1,2) + ", ";
+                    send_data := send_data + NumToStr(joints_pose.robax.rax_2,2) + ", ";
+                    send_data := send_data + NumToStr(joints_pose.robax.rax_3,2) + ", ";
+                    send_data := send_data + NumToStr(joints_pose.robax.rax_4,2) + ", ";
+                    send_data := send_data + NumToStr(joints_pose.robax.rax_5,2) + ", ";
+                    send_data := send_data + NumToStr(joints_pose.robax.rax_6,2);
 
                 DEFAULT:
                     TPWrite "SERVER: Illegal (not addressed) id number: " + ValToStr(id) + ".";
@@ -278,20 +288,26 @@ MODULE server
                 ENDIF
 
                 !Translate the message to send into JSON format.
-                send_string := "{'id':" + NumToStr(id, 0) + ",";
-                send_string := send_string + "'ok':" + ok_string + ",";
-                send_string := send_string + "'data': '[" + data_string + "]'}";
+                send_beg := "{'id':" + NumToStr(id, 0) + ",";
+                send_beg := send_beg + "'ok':" + ok_string + ",";
+                send_beg := send_beg + "'data': '[";
+                send_end := "]'}";
 
                 !+++++++++++++++++++++++++++++++++++++++++++++++
                 !Send data to the socket (client) in two steps.
                 !+++++++++++++++++++++++++++++++++++++++++++++++
 
                 !1. step:   Send the length of the message.
-                send_length := NumToStr(StrLen(send_string), 0) + "\0A";
-                SocketSend client_socket \Str:=send_length;
+                total_length := StrLen(send_beg) + StrLen(send_data) + StrLen(send_end);
+                send_total_length := NumToStr(total_length, 0) + "\0A";
+                SocketSend client_socket \Str:=send_total_length;
 
                 !2. step:   Send the original message.
-                SocketSend client_socket \Str:=send_string;
+                SocketSend client_socket \Str:=send_beg;
+                IF StrLen(send_data) > 0 THEN
+                    SocketSend client_socket \Str:=send_data;
+                ENDIF
+                SocketSend client_socket \Str:=send_end;
 		    ENDIF
         ENDWHILE
 
@@ -311,6 +327,24 @@ MODULE server
             CASE ERR_OUTOFBND:
                 !The array index is outside the permitted limits.
                 ok := FALSE;
+            CASE ERR_STRTOOLNG:
+                !The string 'send_data' is too long (>80 bytes) and can not be send to the client;
+                !the error code id = -10 will replace the acquired id in the response.
+                IF id >= 0 THEN
+                    TPWrite "SERVER: The data supposed to send back is too long and will be reseted.";
+                    TPWRITE "The acquired case (id) was: " + ValToStr(id);
+                    TPWRITE ", and will be set to id = -10 in the response.";
+                    TPWrite "The overwritten data is:";
+                    TPWrite send_data;
+                ELSE
+                    TPWrite "SERVER: The data supposed to send back is too long and will be reseted again.";
+                    TPWrite "The overwritten data is:";
+                    TPWrite send_data;
+                ENDIF
+                id := -10;
+                ok := FALSE;
+                send_data := "";
+                RETRY;
             DEFAULT:
                 TPWrite "SERVER: Unknown error.";
                 TPWrite "SERVER: The socket will be closed and restarted.";
