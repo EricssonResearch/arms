@@ -3,6 +3,7 @@
 from arms.config import config
 from arms.utils import log
 from arms.uart.Arduino_RPI_communication import Arduino
+import time
 
 def main():
     """Main routine."""
@@ -19,10 +20,14 @@ def initialization():
         log.log.warning('Could not find settings in config.')
         
     a = Arduino()
-    print(a.port)
-    
+    print(a.receive())
+    a.send(1)
+    time.sleep(1)
+    a.send(0)
+    a.disconnect()
     a.connect()
-    
+    a.send(1)
+    a.disconnect()
     
     
     print("printing in app.py - final line")

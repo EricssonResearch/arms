@@ -1,12 +1,20 @@
 Log file
 ------------------------------------------------------------------------------------------
-Log file
-------------------------------------------------------------------------------------------
-Log file
-------------------------------------------------------------------------------------------
-2018-11-08 14:02 | log        | INFO     | Log file initialized.
-2018-11-08 14:02 | log        | INFO     | Log file initialized.
-2018-11-08 14:02 | log        | INFO     | Log file initialized.
-2018-11-08 14:02 | ard_log    | INFO     | Loaded configurations
-2018-11-08 14:02 | ard_log    | INFO     | Loaded configurations
-2018-11-08 14:02 | ard_log    | INFO     | Loaded configurations
+2018-11-12 12:34 | log        | INFO     | Log file initialized.
+2018-11-12 12:34 | ard_log    | INFO     | Loaded configurations
+2018-11-12 12:34 | ard_log    | INFO     | Connecting to port: COM6 with baudrate: 9600
+2018-11-12 12:34 | ard_log    | INFO     | Last response: "None"
+2018-11-12 12:34 | ard_log    | INFO     | sending command 1
+2018-11-12 12:34 | ard_log    | INFO     | in write_HW: waiting for interlock
+2018-11-12 12:34 | ard_log    | INFO     | in write_HW: waiting for interlock
+2018-11-12 12:34 | ard_log    | INFO     | poll response: 1
+2018-11-12 12:34 | ard_log    | INFO     | sending command 0
+2018-11-12 12:34 | ard_log    | INFO     | Disconnected from port COM6
+2018-11-12 12:34 | ard_log    | INFO     | WORKER END
+2018-11-12 12:34 | ard_log    | INFO     | Connecting to port: COM6 with baudrate: 9600
+2018-11-12 12:34 | ard_log    | INFO     | sending command 1
+2018-11-12 12:34 | ard_log    | INFO     | in write_HW: waiting for interlock
+2018-11-12 12:34 | ard_log    | INFO     | in write_HW: waiting for interlock
+2018-11-12 12:34 | ard_log    | INFO     | poll response: 1
+2018-11-12 12:34 | ard_log    | INFO     | Disconnected from port COM6
+2018-11-12 12:34 | ard_log    | INFO     | WORKER END

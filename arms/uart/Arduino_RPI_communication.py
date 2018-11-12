@@ -51,28 +51,30 @@ import threading
 
 class GetHWPoller(threading.Thread):
     """ thread to repeatedly poll hardware
-    sleeptime: time to sleep between pollfunc calls
-    pollfunc: function to repeatedly call to poll hardware"""
-
+      sleeptime: time to sleep between pollfunc calls
+      pollfunc: function to repeatedly call to poll hardware
+    """
     def __init__(self,sleeptime,pollfunc):
-
+    
         self.sleeptime = sleeptime
         self.pollfunc = pollfunc  
         threading.Thread.__init__(self)
         self.runflag = threading.Event()  # clear this to pause thread
         self.runflag.clear()
-
+        self.aliveflag = threading.Event() # added a flag to kill thread, clear this to kill thread
+        self.aliveflag.set()
+      
     def run(self):
         self.runflag.set()
         self.worker()
 
     def worker(self):
-        while(1):
+        while(self.aliveflag.is_set()):
             if self.runflag.is_set():
                 self.pollfunc()
                 time.sleep(self.sleeptime)
             else:
-                time.sleep(0.01)
+                time.sleep(self.sleeptime)
 
     def pause(self):
         self.runflag.clear()
@@ -84,9 +86,10 @@ class GetHWPoller(threading.Thread):
         return(self.runflag.is_set())
 
     def kill(self):
-        print("WORKER END")
+        ard_log.info("WORKER END")
         sys.stdout.flush()
-        self._Thread__stop()
+        self.aliveflag.clear() # kills the thread
+        self.join()
 
 
 class HW_Interface(object):
@@ -104,23 +107,34 @@ class HW_Interface(object):
         self.callback = None
         self.verbose = True # for debugging
 
+
     def register_callback(self,proc):
         """Call this function when the hardware sends us serial data"""
         self.callback = proc
         #self.callback("test!")
+    def pause(self):
+        """Call this function to pause the polling thread"""
+        self.worker.pause()
+        
+    def resume(self):
+        """Call this function to resume the polling thread"""
+        self.worker.resume()
 
     def kill(self):
+        """Call this function to end the polling thread"""
         self.worker.kill()
 
 
     def write_HW(self,command):
         """ Send a command to the hardware"""
         while self.interlock: # busy, wait for free, should timout here 
-            print("waiting for interlock")
+            print("in write_HW: waiting for interlock")
+            ard_log.info("in write_HW: waiting for interlock")
+            time.sleep(self.sleeptime)
             sys.stdout.flush()
-            
+        #implementation of a primitive semaphore    
         self.interlock = True
-        self.ser.write(command + "\n")
+        self.ser.write(bytes(command + "\n", "utf-8"))
         self.interlock = False
 
     def poll_HW(self):
@@ -128,7 +142,8 @@ class HW_Interface(object):
         Stores response in self.response, returns a status code, "OK" if so"""
         if self.interlock:
             if self.verbose: 
-                print("poll locked out")
+                print("in poll_HW: poll locked out")
+                ard_log("in poll_HW: poll locked out")
                 self.response = None
                 sys.stdout.flush()   
             return "interlock" # someone else is using serial port, wait till done!
@@ -141,8 +156,8 @@ class HW_Interface(object):
                 response = response.strip() #get rid of newline, whitespace
                 if len(response) > 0: # if an actual character
                     if self.verbose:
-                        self.response = response
-                        print("poll response: " + self.response )
+                        self.response = response.decode("utf-8") #added decode for python 3
+                        ard_log.info("poll response: " + self.response )
                         sys.stdout.flush()
                     if self.callback:
                         #a valid response so send it
@@ -171,7 +186,9 @@ class Arduino():
         #Attribites for the class
         self.command = ""
         self.load()
-        #self.serial = serial.Serial()
+        self.connect()
+        
+
     #Methods of the class
 
     def load(self):
@@ -194,7 +211,7 @@ class Arduino():
             ard_log.info("Loaded configurations")
         except(KeyError,TypeError):
             
-            self.port = "COM3"          #Port for Uart, might need to be reconfigured on
+            self.port = "COM6"          #Port for Uart, might need to be reconfigured on
             self.baudrate = 9600
             self.bytesize = serial.EIGHTBITS    #number of bits per bytes
             self.parity = serial.PARITY_NONE    #set parity check: no parity
@@ -204,20 +221,23 @@ class Arduino():
             self.rtscts = False                 #disable hardware (RTS/CTS) flow control
             self.dsrdtr = False                 #disable hardware (DSR/DTR) flow control
             self.writeTimeout = 2               #timeout for write
-            self.sleeptime = 0.1;               #sets the time between message polling
+            self.sleeptime = 1;               #sets the time between message polling 0.1 is good maybe
             ard_log.error("Could not load configurations, using default values")
+        
         #ard_log.error('Hello')
         return
     
     def connect(self):
         try:
             #Creates the serial connection to the Arduino as specified in the config file
+            print("creating serial stuff here - Arduino_RPI_comm line 230")
+            ard_log.info("Connecting to port: %s with baudrate: %s" %(self.port, self.baudrate) )
             self.serial = serial.Serial(port = self.port, baudrate = self.baudrate, 
                                     bytesize = self.bytesize, parity = self.parity, 
                                     stopbits = self.stopbits, timeout = self.timeout,
                                     xonxoff = self.xonxoff, rtscts = self.rtscts, 
                                     dsrdtr = self.dsrdtr, writeTimeout = self.writeTimeout)
-           
+            
         except serial.SerialException as e:
             ard_log.error(e)
             print("except serial.SerialException as e")
@@ -225,27 +245,22 @@ class Arduino():
         except ValueError as e:
             ard_log.error(e)
             print("except ValueError as e")
+        self.hw = HW_Interface(self.serial, self.sleeptime)    
             
-            
-            
-        try:
-             #Creates thread that listens to the Arduino
-             self.hw = HW_Interface(self.serial,self.sleeptime)
-        except:
-            print("Hello")
-            
-            
-        return
-    
     def disconnect(self):
-        self.serial.close()
+        ard_log.info("Disconnected from port %s" %(self.port))
+        self.hw.kill() #ends the listner thread
+        self.serial.close() #closes the serial connection
         return
     
-    def send(self):
-        
+    def send(self,val):
+        val = str(val)
+        ard_log.info("sending command " + val)
+        sys.stdout.flush()
+        self.hw.write_HW(val)
+           
         return
     
     def receive(self):
-        
-        return
-    
+        ard_log.info('Last response: "%s"' % self.hw.response)
+        return self.hw.response
