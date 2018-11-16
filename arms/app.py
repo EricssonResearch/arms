@@ -18,16 +18,17 @@ def initialization():
         log.config.warning("{}.".format(config.var.error))
     if log.ERROR:
         log.log.warning('Could not find settings in config.')
-        
     a = Arduino()
-    a.send(11)
-    time.sleep(1)
-    a.send(20)
-    a.disconnect()
-    a.connect()
-    a.send(31)
-    a.disconnect()
     
+    while(1):
+        try:
+            a.send("1,3,1.0;2;3.14#")
+            time.sleep(1)
+            a.send("2,3,4.0;2;3.14#")
+            time.sleep(1)
+        except KeyboardInterrupt:
+            a.disconnect()
+            break
     print(a.ID +' '+a.fields+' '+str(a.data))
     
     

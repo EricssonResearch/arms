@@ -1,4 +1,4 @@
-#include "ARMS.h"
+//#include "ARMS.h"
 #include <Arduino.h>
 
 
@@ -41,16 +41,13 @@ void loop() {
      * Currently useless LED-code. May be used for testing later.
      */
     if (stringComplete) {
-      if (inputString[0] == '0') {
-        digitalWrite(led, LOW);
-      }
-      else {
-        //Serial.println("on!"); 
+      parseMSG(inputString);
+      if(ID == 0 && Data[0]== 1.0){
         digitalWrite(led, HIGH);
+        delay(1000);
       }
-
-    
-      
+      digitalWrite(led, LOW);
+         
     // clear the string:
     inputString = "";
     stringComplete = false;
@@ -59,15 +56,21 @@ void loop() {
     /*
      * The test-string (declared up top) is used in the MSG-parser function.
      */
-    parseMSG(test);
-    Serial.print(ID);
-    Serial.print(",");
-    Serial.print(fields);
-      for(int i=0; i < fields; i++){
-        Serial.print(Data[i]);
+    if(Serial.available()){
+      Serial.print(ID);
+      Serial.print(",");
+      Serial.print(fields);
+      Serial.print(",");
+        for(int i=0; i < fields-1; i++){
+          Serial.print(Data[i]);
+          Serial.print(";");
       }
-    Serial.println();
-    delay(1000);
+      Serial.print(Data[fields-1]);
+      Serial.print("#");
+      Serial.println();
+      delay(1000);
+    }
+      
     
     
 }
@@ -91,8 +94,6 @@ void serialEvent() {
     } 
   }
 }
-
-
 
 void parseMSG(String input){
  
@@ -125,7 +126,6 @@ void parseMSG(String input){
     *pfields = temp.toInt();
     temp= "";
 
-
     /*
      *When parsing the data-fields (separated by ";"), a while loop is used to be able to store a dynamic number of data-fields.
      *The variable fieldCounter is used to know where to place the data-fields in Data[].
@@ -134,26 +134,14 @@ void parseMSG(String input){
     int fieldCounter = 0;
     int len = input.length();
     while(counter<len) {
-
-    Serial.print("temp");    
-    Serial.print(temp);
-    Serial.println();
-      
       for(int i = counter; input[i] !=';'; i++){
         if(input[i]=='#'){
           break;
         }
         temp += input[i];
         counter ++;
-            Serial.print("tempnext");    
-            Serial.print(temp);
-            Serial.println();    
     }
-
       Data[fieldCounter] = temp.toFloat();
-          Serial.print("fieldcounter");    
-          Serial.print(Data[fieldCounter]);
-          Serial.println();
       temp = "";
       counter++;
       fieldCounter++;

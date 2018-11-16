@@ -11,7 +11,7 @@
   
   
   "uart_config": {
-    "port" : "COM6",
+    "port" : "COM7",
     "baudrate": 9600,
     "bytesize": 8,
     "parity": "N",
@@ -21,6 +21,6 @@
     "rtscts": 0,                 
     "dsrdtr":0 ,                
     "writeTimeout": 2,
-    "sleeptime": 1
+    "sleeptime": 0.01
     }
 }
