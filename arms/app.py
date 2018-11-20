@@ -22,10 +22,10 @@ def initialization():
     
     while(1):
         try:
-            a.send("1,3,1.0;2;3.14#")
-            time.sleep(1)
-            a.send("2,3,4.0;2;3.14#")
-            time.sleep(1)
+            a.send("1,3,1.0;2;3.14;")
+            time.sleep(0.5)
+            a.send("2,3,4.0;2;3.14;")
+            time.sleep(0.5)
         except KeyboardInterrupt:
             a.disconnect()
             break

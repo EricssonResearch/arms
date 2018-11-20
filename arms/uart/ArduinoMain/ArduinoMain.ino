@@ -22,6 +22,47 @@ int fields;
 int* pfields = &fields;
 float Data[10];
 char fData[20];
+
+/*
+ * Variables for the motor driver..
+ */
+const int standby = 8;
+const int ref = 9;
+const int mode3 = 11;
+const int mode2 = 12;
+const int mode1 = 13;
+
+const int EN_FAULT = 2;
+const int STCK1 = 3;
+const int DIR2 = 4;
+const int DECAY = 5;
+const int STCK2 = 6;
+const int DIR1 = 7;
+
+
+
+
+
+
+
+
+ 
+const int StepSender = 3; //pin
+const int dir1=4;         //pin
+const int dir2=7;         //pin
+CCW=1;                    
+CW=2;
+standby = 8;
+int State = LOW, S = 49;
+volatile unsigned long stepCount = 0; // use volatile for shared variables
+
+/*
+ * Variables for the sensors ADCs
+ */
+const uint16_t THRESHOLD0 = 512, THRESHOLD1 = 512;
+volatile uint16_t adc;
+uint16_t adc0, adc1;
+
 /*
  * A test message of the type that the arduino will recieve is created.
  * First number will be the ID.
@@ -42,9 +83,16 @@ void setup() {
       Serial.begin(9600);
       Serial2.begin(9600);
 
-   //init for interrupts stepper motor
-
-   //init for interrupts force sensor
+   //init for stepper motor
+      pinMode(dir1,OUTPUT);
+      pinMode(dir2,OUTPUT);
+      pinMode(StepSender, OUTPUT);
+   //init for force sensor
+      ADMUX &= ~(1 << ADLAR);
+      ADCSRA |= 0b10000111; 
+      ADCSRA |= (1 << ADIE);    // Enable Interrupts 
+      ADCSRB = 0; // Trigger for ADC is timer 1 compare match B                                            |
+      SREG |= 0x80;   // Global interrupt enable flag 
 }
 
 void loop() {
