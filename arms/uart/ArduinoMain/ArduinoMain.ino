@@ -33,13 +33,14 @@ const int mode2 = 12;
 const int mode1 = 13;
 
 const int EN_FAULT = 2;
-const int STCK1 = 3;
-const int DIR2 = 4;
+const int STCK1 = 3;    //PWM Input, which determines speed
 const int DECAY = 5;
 const int STCK2 = 6;
-const int DIR1 = 7;
+const int DIR1 = 7;     //DIR1 = HIGH, DIR2 = LOW is CCW rotation
+const int DIR2 = 4;     //DIR1 = LOW, DIR2 = HIGH is CW rotation
 
-
+//Implement a clock to generate a PWM signal. 
+//Implement interrupt connected to clock to count pulses. 
 
 
 
