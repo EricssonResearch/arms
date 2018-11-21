@@ -183,8 +183,11 @@ class SocketServer:
 
     def close(self):
         """Closes the socket and the connection to the client."""
-        self.conn.close()
-        self.sock.close()
+        if self.conn is not None:
+            self.conn.close()
+            
+        if self.sock is not None:
+            self.sock.close()
 
 
 @pytest.fixture(scope="class")
