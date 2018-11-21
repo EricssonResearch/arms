@@ -1,5 +1,8 @@
 //#include "ARMS.h"
 #include <Arduino.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <TimerOne.h>
 
 
 //global variable for led
@@ -16,10 +19,10 @@ String temp = "";                // Used as temporary storage variable when conv
  * The variable for ID, fields and the Data-array are created with their corresponding pointers.
  * These are the variables that parseMsg dumps it's info into.
  */
-int ID;
-int* pID = &ID;
-int fields;
-int* pfields = &fields;
+volatile int ID;
+volatile int* pID = &ID;
+volatile int fields;
+volatile int* pfields = &fields;
 float Data[10];
 char fData[20];
 
@@ -33,29 +36,21 @@ const int mode2 = 12;
 const int mode1 = 13;
 
 const int EN_FAULT = 2;
-const int STCK1 = 3;    //PWM Input, which determines speed
+const int STCK1 = 3;    //PWM Input, which determines speed, "stepsender"
 const int DECAY = 5;
 const int STCK2 = 6;
-const int DIR1 = 7;     //DIR1 = HIGH, DIR2 = LOW is CCW rotation
-const int DIR2 = 4;     //DIR1 = LOW, DIR2 = HIGH is CW rotation
+const int DIR1 = 4;     //DIR1 = HIGH, DIR2 = LOW is CCW rotation
+const int DIR2 = 7;     //DIR1 = LOW, DIR2 = HIGH is CW rotation
 
+/*
+ * Stepper related variables.
+ */
+long stepCounter = 0;
+long stepRef=0;
+long volatile stepDiff=1;
+int volatile stepState = 0;
 //Implement a clock to generate a PWM signal. 
 //Implement interrupt connected to clock to count pulses. 
-
-
-
-
-
-
- 
-const int StepSender = 3; //pin
-const int dir1=4;         //pin
-const int dir2=7;         //pin
-CCW=1;                    
-CW=2;
-standby = 8;
-int State = LOW, S = 49;
-volatile unsigned long stepCount = 0; // use volatile for shared variables
 
 /*
  * Variables for the sensors ADCs
@@ -73,8 +68,12 @@ uint16_t adc0, adc1;
  */
 String test = "1,3,1.0;2;3.14;";
 void setup() {
-  //init led for testing
-      pinMode(led, OUTPUT);
+      //init for stepper motor
+      pinMode(DIR1,OUTPUT);
+      pinMode(DIR2,OUTPUT);
+      pinMode(STCK1, OUTPUT);
+      pinMode(standby, OUTPUT);
+      digitalWrite(DIR1,HIGH);  digitalWrite(DIR2,LOW); //CCW
 
    //INIT of variables and functions for parseMSG
       inputString.reserve(200);//Reserve 200 bytes for message.
@@ -82,24 +81,82 @@ void setup() {
 
    //INIT for serial communication
       Serial.begin(9600);
-      Serial2.begin(9600);
+//      Serial2.begin(9600);
 
-   //init for stepper motor
-      pinMode(dir1,OUTPUT);
-      pinMode(dir2,OUTPUT);
-      pinMode(StepSender, OUTPUT);
+   //INIT for PWM with phase-correct with OCRA controlling the TOP value.
+      DDRD = _BV(PD3);  //Set pin 3 (timer 2 OC2B) to OUTPUT mode.
+      pinMode(19, INPUT_PULLUP);
+      pinMode(18, INPUT_PULLUP);
+      TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM20);
+      TCCR2B = _BV(CS22)  | _BV(WGM22);
+      OCR2A = 125;
+      OCR2B = 1;
+      
+      TCNT2 = 0;      //Reset counter
+      
+      /*
+       * "When this bit (in TIMSK1) is written to '1', and the I-flag in the Status Register is set (interrupts globally enabled), the
+       * Timer/Counter 1 Overflow interrupt is enabled. The corresponding Interrupt Vector is executed when the TOV Flag, located in TIFR1, is set."
+       */
+   //   TIMSK2 = 0x00;    //Reset TISMK
+      TIMSK2 |= 0x01;   //Set TOIE=1
+
+      /*
+       * The setting of this flag is dependent of the WGM1[3:0] bits setting. In Normal and CTC modes, the TOV1
+       * Flag is set when the timer overflows. Refer to the Waveform Generation Mode bit description for the TOV
+       * Flag behavior when using another WGM1[3:0] bit setting.
+       * TOV1 is automatically cleared when the Timer/Counter 1 Overflow Interrupt Vector is executed.
+       * Alternatively, TOV1 can be cleared by writing a logic one to its bit location.
+       */
+    //  TIFR2 = 0x00;
+      TIFR2 |= 0x01;    //Set TOV=1 
+
+      int calcFreq = F_CPU/(2*64*OCR2A);
+      float OCR2Btemp = OCR2B;
+      float calcDuty = float(OCR2Btemp/OCR2A)*100;
+      Serial.print("Frequency should be: ");
+      Serial.println(calcFreq);
+      Serial.print("Duty cycle should be: ");
+      Serial.println(calcDuty);
+
+      
    //init for force sensor
       ADMUX &= ~(1 << ADLAR);
       ADCSRA |= 0b10000111; 
       ADCSRA |= (1 << ADIE);    // Enable Interrupts 
       ADCSRB = 0; // Trigger for ADC is timer 1 compare match B                                            |
       SREG |= 0x80;   // Global interrupt enable flag 
+      
+
+
+      sei();
+      //setPWM(4800, 60);
+      
+      stepRef = 20000;
 }
 
 void loop() {
     /*
      * Currently useless LED-code. May be used for testing later.
      */
+     if(!digitalRead(19)){
+      //Serial.println("HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEJ");
+      stepRef = 0;
+     }
+     else{
+      stepRef = 10000;
+     }
+
+      if(!digitalRead(18)){
+        pinMode(8, INPUT);
+      }
+      else{
+        pinMode(8, OUTPUT);
+      }
+     
+//    if(stepDiff <= 500){
+//      stepRef = 1;
+//    }
     if (stringComplete) {
       parseMSG(inputString);
       serialSend();
@@ -132,7 +189,11 @@ void loop() {
 
     /*
      * The test-string (declared up top) is used in the MSG-parser function.
-     */    
+     */
+     Serial.print("stepCounter: ");
+     Serial.println(stepCounter);    
+     Serial.print("stepDiff: ");
+     Serial.println(stepDiff);   
 }
 
 void serialSend(){      
@@ -149,6 +210,34 @@ void serialSend(){
     // clear the string:
 }
 
+ISR(TIMER2_OVF_vect){
+  stepDiff = stepRef-stepCounter;
+  
+    if(stepDiff>0){ 
+      if(stepState!=1){
+        pinMode(standby,INPUT);
+        digitalWrite(DIR1,HIGH);  digitalWrite(DIR2,LOW); //CCW
+        stepState = 1;
+      }
+    stepCounter++;
+    }
+      
+    else if (stepDiff<0){
+      if(stepState!=-1){
+        pinMode(standby,INPUT);
+        digitalWrite(DIR2,HIGH);  digitalWrite(DIR1,LOW); //CW
+        stepState = -1;
+      }
+    stepCounter--;
+    }
+    else if(stepDiff==0){
+      if(stepState != 0){
+        pinMode(standby,OUTPUT);
+        stepState = 0;
+      }
+    }
+}
+
 /*
  * Whenever a line appears in the serial channel, a serial event is triggered.
  */
@@ -162,7 +251,7 @@ void serialEvent() {
     // so the main loop can do something about it:
     if (inChar == '\n') {
       stringComplete = true; 
-      Serial2.println("MESSAGE RECIEVED: " + inputString);
+//      Serial2.println("MESSAGE RECIEVED: " + inputString);
     } 
   }
 }
@@ -183,6 +272,9 @@ void error(){
   
 }
 
+void setPWM(int freq, int duty){
+}
+
 void parseMSG(String input){ 
  /*
   * A counter is initiated to be able to know where in the parsed string the parser is situated.
@@ -192,7 +284,7 @@ void parseMSG(String input){
   * After this, the same is done for the fields-variable. Every for loop is ended with a counter++, which makes sure that the
   * next for loop doesnt begin with parsing any char twice.
   */
-  Serial2.println("PROBE1");
+//  Serial2.println("PROBE1");
   int counter = 0;
   int fieldCounter = 0;
   int len = input.length();
@@ -219,11 +311,11 @@ void parseMSG(String input){
 
     for(int i = counter; i<=len; i++){
       if( (input[i]>= '0' && input[i] <= '9')|| input[i] =='.'){
-        Serial2.println("appended to temp");
+//        Serial2.println("appended to temp");
         temp += input[i];
       }
       else if(input[i]==';'){
-        Serial2.println("appended to data");
+//        Serial2.println("appended to data");
         Data[fieldCounter] = temp.toFloat();
         fieldCounter++;
         temp = "";
