@@ -19,7 +19,7 @@ class Camera:
 		self.camera = PiCamera()
 		self.camera.resolution = (3280, 2464)
 		self.camera.rotation = 180
-		self.camera.zoom = (0.25, 0.25, 0.4, 0.4)
+		self.camera.zoom = (0.4, 0.4, 0.2, 0.2)
 		self.raw = PiRGBArray(self.camera)
 		log.camera.info("Camera initialized!")
 		sleep(1)
@@ -33,17 +33,19 @@ class Camera:
 		self.camera.capture(self.raw, format="bgr") #Takes the picture and saves it on raw
 		print("Click!")
 		#Use this to use the captured picture and the other one for a specific file
-		#img = self.raw.array
+		img = self.raw.array
 		
-		img = cv2.imread('2018-10-01 15:13:49.347220.jpg')
+		#img = cv2.imread('2018-10-01 15:13:49.347220.jpg')
 		if img is None:  
 			log.camera.warning('Failed to load image file.')
 			return
 		filename = str(datetime.datetime.now()) + ".jpg"
 		cv2.imwrite(filename,img)	#Saves the image for potential later use
 		gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)	#converts to grayscale
+		gray = cv2.blur(gray, (5,5))
+		cv2.imwrite("blur.jpg",gray)
 		edged = cv2.Canny(gray, 50, 100, None, apertureSize = 3)	#Canny edge detection to find the edges of the picture
-		lines = cv2.HoughLines(edged,1,np.pi/360,240, None, 0, 0)	#Uses Hough line detection to find the most concurrent
+		lines = cv2.HoughLines(edged,1,np.pi/360,180)	#Uses Hough line detection to find the most concurrent
 		#edges (i.e. the longest lines). The third value is the resolution for the measurements and the fourth value is the
 		#threshold. The threshold determines how many times a line must be detected to qualify, lower it if no lines can be found.
 		"""
@@ -58,8 +60,8 @@ class Camera:
 			for i in range(len(lines)):
 				rho = lines[i][0][0]
 				theta = lines[i][0][1]
-				if (theta % (math.pi/2)) < 0.1:
-					if theta%(math.pi) < 0.1:
+				if (theta % (math.pi/2)) < 0.05:
+					if theta%(math.pi) < 0.05:
 						thetaVer.append(theta)
 						rhoVer.append(rho)
 					else:
@@ -83,17 +85,17 @@ class Camera:
 		rhoFinal = [0, 3000, 0, 3000]
 		thetaFinal = [0, 0, 0, 0]
 		for i in range(len(rhoVer)):
-			if abs(thetaVer[i] - verMax) < 0.02 and rhoVer[i] < rhoFinal[1] and thetaHor[i] != 0:
+			if rhoVer[i] < rhoFinal[1] and thetaHor[i] != 0:
 				rhoFinal[1] = rhoVer[i]
 				thetaFinal[1] = thetaVer[i]
-			elif abs(thetaVer[i] - verMax) < 0.02 and rhoVer[i] > rhoFinal[0]:
+			elif rhoVer[i] > rhoFinal[0]:
 				rhoFinal[0] = rhoVer[i]
 				thetaFinal[0] = thetaVer[i]
 		for i in range(len(rhoHor)):
-			if abs(thetaHor[i] - horMax) < 0.02 and rhoHor[i] < rhoFinal[3]:
+			if rhoHor[i] < rhoFinal[3]:
 				rhoFinal[3] = rhoHor[i]
 				thetaFinal[3] = thetaHor[i]
-			elif abs(thetaHor[i] - horMax) < 0.02 and rhoHor[i] > rhoFinal[2]:
+			elif rhoHor[i] > rhoFinal[2]:
 				rhoFinal[2] = rhoHor[i]
 				thetaFinal[2] = thetaHor[i]
 		"""
