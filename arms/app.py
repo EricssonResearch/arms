@@ -1,14 +1,12 @@
 """Initialization of arms."""
-
 import arms.config.config as config
 import arms.utils.log as log
-from arms.arduino.arduino import Arduino
+from arms.sensor.sensor import Sensor
 
 
 def main():
     """Main routine."""
     initialization()
-
 
 def initialization():
     """Initialization routine."""
