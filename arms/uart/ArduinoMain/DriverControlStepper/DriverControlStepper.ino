@@ -10,27 +10,27 @@ const int EN = 2; //PD2 Shuts of the board directly by connecting emitters of tr
 const int STEP = 3; // Input pin for steps, minimum pulse can be 40ns.
 const int DECAY = 5; // Selects the decay mode for the motor
 const int DIR = 7; // Sets the direction of the stepper motor, 1 is CW and 0 is CC2
-const int pressure_voltage = A5;
 
+const int pressureVDD = A5; //This outputs 5V on pin A5 which powers the pressure sensor
+const int PRE  = A0; //input signal to preassure sensor
+const int CUR = A1; // input signal to current sensor
 //Variables
-volatile int MODE = 0; // selects the step mode of the motor
-volatile int nPulse = 0; //Counter variable for number of pulses (do not mistake this for steps!)
-volatile int pulseRef = 0; // The reference value for numbers of pulses
-volatile int pulseFactor = 1; // makes sure that the motor goes same length independent of selected mode
-volatile boolean runflag = false;
+int MODE = 0; // selects the step mode of the motor
+volatile uint32_t nPulse = 0; //Counter variable for number of pulses (do not mistake this for steps!)
+volatile uint32_t pulseRef = 0; // The reference value for numbers of pulses
+uint32_t pulseFactor = 1; // makes sure that the motor goes same length independent of selected mode
+uint32_t nSteps = 0;       //Counter to send back actual emitted pulses to the rPi
+volatile int preassureRef = 100;    // Soft-stop for claw to stop when reached, does not trigger pressure_error
+volatile int pressure = 0.0;      // variable that saves the measured pressure every interrupt by TIMER1
+volatile int current = 0.0;       // variable that saves the measured current every interrupt by TIMER1
+const int pressureCritical = 900; //Maximum pressure 
+const int currentCritical = 460;  //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
 
-//from timer interrupt to measure sensor values
+//flags
 static boolean state = false;            //This boolean switches between if the current OR the pressure is measured at each timer interrupt
-volatile boolean Current_Error = false;  //These flags will be set to TRUE if either current or pressure is too high
-volatile boolean Pressure_Error = false; // Needs to be volatile since it's accessed both by ISR and main loop
-volatile float pressure = 0.0;
-volatile float current = 0.0;
-volatile int Pressure_ref = 100;
-volatile int nSteps = 0;
-
-
-//testing variables
-boolean time_to_run = true;
+volatile boolean runFlag = false;   //flag which allows pulses to be emitted, is set to TRUE every time CW or CCW is called
+volatile boolean currentError = false;  //These flags will be set to TRUE if either current or pressure is too high, and prevents any movement.
+volatile boolean pressureError = false; // Needs to be volatile since it's accessed both by ISR and main loop. These can only be reset by the raspberry pie
 
 
 void setup() {
@@ -44,8 +44,8 @@ void setup() {
   pinMode(STEP, OUTPUT);
   pinMode(DECAY, OUTPUT);
   pinMode(DIR, OUTPUT);
-  pinMode(pressure_voltage, OUTPUT);
-  analogWrite(pressure_voltage, 255);
+  pinMode(pressureVDD, OUTPUT);
+  analogWrite(pressureVDD, 255);
 
   //Initial configurations
   digitalWrite(STBY,LOW); // put motorshield in standby
@@ -76,48 +76,12 @@ void setup() {
 }
 
 void loop() {
-  /*
-  while(pressure > 50){
-    CW(100,150,2);
-    Serial.print("running CW: ");
-    Serial.println(pressure);
-    delay(1000);
-  }
-//Serial.println("Restarting loop");
-//CW(1000,150,2);   //CW öppnar
-
-while(pressure < 400){
-  CCW(100,150,2);
-  Serial.print("running CCW: ");
-  Serial.println(pressure);
-  delay(1000);
-}
-*/
-//delay(2000);
-
-/*
-Serial.println("restarting loop");
-runflag = true;
-delay(1000);
-CCW(100,150,2);    //CCW stänger
-*/
-////if(time_to_run){
-//
-//  CW(1024,75,3);
-//  delay(2000);
-//  time_to_run = false;
-////}
-//
 
 openGripper(4000,10);
 delay(1000);
 closeGripper(4000,10);
 delay(1000);
-/*
-runflag = true;
-CW(500,75,3);
-delay(2500);
-*/
+
 
 }
 
@@ -285,24 +249,20 @@ void setMode(int mode){
 ISR(TIMER1_COMPA_vect){
   state = !state;                        // toggle state
   if(state){                             //Here we measure the current sensor
-    current = analogRead(A1);
-    if(current < 470){                   //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
-      //Serial.print("A2 current: ");
-      //Serial.println(current);
-      Current_Error = true;
-      runflag = false;
+    current = analogRead(CUR);
+    if(current < currentCritical){       //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
+      currentError = true;
+      //runFlag = false;
     }
   }
   else{                                  //Here we measure the pressure sensor
-    pressure = analogRead(A0);
-    if((pressure >= Pressure_ref) && ~(PIND&0x80)){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
-      runflag = false;
+    pressure = analogRead(PRE);
+    if((pressure >= preassureRef) && ~(PIND&0x80)){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
+      runFlag = false;
     }
-    if(pressure >= 700){                    //This value needs tuning, roughly 300-400 range ish
-      //Serial.print("A1 pressure: ");
-      //Serial.println(pressure);
-      Pressure_Error = true;
-      runflag = false;
+    if(pressure >= pressureCritical){        //Making sure we never squeeze harder than a set value. This raises pressureError
+      pressureError = true;
+      runFlag = false;
     }
     }
 }
@@ -315,26 +275,26 @@ ISR(TIMER2_COMPA_vect){
  * Emitts a short pulse with 4 cpu cycles pulse width.
  * Increments the pulse counter.
  */
- //cli();
-  if((PINB&0x01)&&(PIND&0x04)){ //Check if EN and STBY is high.
-    if(runflag == 1){
-    // Have we reached the reference?
-    if(nPulse >= pulseRef){ //YES
-          //Turn off the stepper drive
+  if((PINB&0x01)&&(PIND&0x04)){                     //Check if EN and STBY is high.
+    if((runFlag == 1) && (pressureError == 0)){    //Check that we have a run command and that no pressure error has occurred
+   
+    // If we have reached the reference
+    //Turn off the stepper drive
+    if(nPulse >= pulseRef){       
           digitalWrite(EN, LOW);
           digitalWrite(STBY, LOW);
-          runflag = false;
+          runFlag = false;
     }
-    else{//NO
-      
+
+    // If we have not reached the reference
     //Send a pulse and add a count
-    PORTD |= (1 << PD3); // Pin n goes high
-    PORTD &= ~(1 << PD3); // Pin n goes low   
+    else{        
+    PORTD |= (1 << PD3);                            // Pin n goes high
+    PORTD &= ~(1 << PD3);                           // Pin n goes low   
     nPulse++;
     }
   }
   }
-  //sei();
 }
 
 /*
@@ -349,35 +309,29 @@ void CCW(int steps, int frequency, int mode){
    * depending on *mode* the *frequency* must be in certain ranges
    */
   
-  setMode(mode); // Set step size
-  counterCLEAR(); // reset the timer two counter
-  setDir(0); // Set counterclock-wise direction
-  setFrequency(frequency); //Set the frequency
-  setPulseRef(steps); // Specify how many steps the motor should take
-  counterON();  // activate Timer2 interrupt on
+  setMode(mode);                                   // Set step size
+  counterCLEAR();                                 // reset the timer two counter
+  setDir(0);                                      // Set counterclock-wise direction
+  setFrequency(frequency);                         //Set the frequency
+  setPulseRef(steps);                             // Specify how many steps the motor should take
+  counterON();                                  // activate Timer2 interrupt on
   
   digitalWrite(EN, HIGH); 
   digitalWrite(STBY, HIGH);
-  runflag = true;
-  Serial.println("CCW");
-  while(runflag){ // Wait until the reference has been reached
-//    Serial.print("nPulse: ");
-//    Serial.println(nPulse);
-      //Serial.print("runflag: ");
-//      //Serial.println(runflag);
-//      Serial.print("Current: ");
-//      Serial.println(current);
-//      Serial.print("Pressure: ");
-//      Serial.println(pressure);
-      //delay(500);
+  if(pressureError == 0){                      //If a pressure error has occurred, don't run this function
+    runFlag = true;
+  }
+  while(runFlag){                               // Wait until the reference has been reached
   }
   digitalWrite(EN, LOW);
   digitalWrite(STBY, LOW);
-  counterOFF(); // Turn the Timer2 interrupt off
-  setPulseRef(0); // Set the pulse reference to zero
-  nSteps = nSteps + nPulses/pulseFactor;
-  counterCLEAR(); // clear the nPulse variable
+  counterOFF();                                 // Turn the Timer2 interrupt off
+  setPulseRef(0);                               // Set the pulse reference to zero
+  nSteps = nSteps + nPulse/pulseFactor;         //Cumulatively add the number of steps taken
+  counterCLEAR();                               // clear the nPulse variable
 }
+
+
 void CW(int steps, int frequency, int mode){
   /*
  * Function which drives the stepper motor in Counterclockwise
@@ -385,86 +339,91 @@ void CW(int steps, int frequency, int mode){
  * Important to notice that *frequency* and *mode* are coupled. This means that
  * depending on *mode* the *frequency* must be in certain ranges
  */
-  
-  setMode(mode); // Set step size
-  counterCLEAR(); // reset the timer two counter
-  setMode(mode); // Set step size
-  setDir(1); // Set Clockwise direction
-  setFrequency(frequency); //Set the frequency
-  setPulseRef(steps); // Specify how many steps the motor should take
-  counterON();  // activate Timer2 interrupt 
+
+  setMode(mode);                                 // Set step size
+  counterCLEAR();                                // reset the timer two counter
+  setMode(mode);                                 // Set step size
+  setDir(1);                                     // Set Clockwise direction
+  setFrequency(frequency);                      //Set the frequency
+  setPulseRef(steps);                           // Specify how many steps the motor should take
+  counterON();                                  // activate Timer2 interrupt 
   digitalWrite(EN, HIGH);
   digitalWrite(STBY, HIGH);
-  runflag = true;
-  //Serial.println("CW");
-    while(runflag){
-//        Serial.print("nPulse: ");
-//        Serial.println(nPulse);
-          //Serial.print("runflag: ");
-//          //Serial.println(runflag);
-//          Serial.print("Current: ");
-//          Serial.println(current);
-//          Serial.print("Pressure: ");
-//          Serial.println(pressure);
-          //delay(500);
+  if(pressureError == 0){                       //If a pressure error has occurred, don't run this function
+    runFlag = true;
+  }
+    while(runFlag){                              //Wait for the pulses to reach the reference
       }
     digitalWrite(EN, LOW);
     digitalWrite(STBY, LOW);
-  counterOFF(); // Turn the Timer2 interrupt off
-  setPulseRef(0); // Set the pulse reference to zero
-  nSteps = nSteps + nPulses/pulseFactor;
-  counterCLEAR(); // clear the nPulse variable
+  counterOFF();                                 // Turn the Timer2 interrupt off
+  setPulseRef(0);                               // Set the pulse reference to zero
+  nSteps = nSteps + nPulse/pulseFactor;         //Cumulatively add the number of steps taken
+  counterCLEAR();                                // clear the nPulse variable
+
 }
 
-void closeGripper(int pulser, int preasure){
-  int full_rotations = pulser/1024;
-  int rest_rotations = pulser%1024;
- volatile int pulse_cnter = pulser;
-      Serial.print("Full_rotations ");
-    Serial.println(full_rotations);
-
-    Serial.print("rest_rotations ");
-    Serial.println(rest_rotations);
-  for(int i = 0; i >= full_rotations; i++){
+void closeGripper(int pulser, int setPreassure){
+  preassureRef = setPreassure;                  //Set reference preassure
+  nSteps = 0;                                   //resets the counter (amount of steps) that will be sent to the rPi
+  int full_rotations = pulser/1024;             //Divide the total amount of steps into batches of 1024
+  int rest_rotations = pulser%1024;             //Any remaining steps that does not amount to a full 1024
+    
+  for(int i = 0; i < full_rotations; i++){      //Run the number of batches that equals 1024 steps a piece
     CCW(1024, 75,3);
-
-    pulse_cnter -= 1024;
-    Serial.print("Pulse counter: ");
-    Serial.println(pulse_cnter);
-    delay(3000);
-
-    
+    delay(3000);                                //Wait for motor to turn the number of steps instructed before sending next batch   
     }
-    CCW(rest_rotations, 75,3);
-    pulse_cnter = pulse_cnter - rest_rotations;
-    Serial.print("Pulse counter: ");
-    Serial.println(pulse_cnter);
-    delay(3000);
     
+    CCW(rest_rotations, 75,3);                   //Run the remaining number of steps
+    delay(3000);                                //Wait for motor to turn the number of steps instructed before progressing with program
+
+    //Sending response to rPi: message = (ID,DATA_POINTS,STEPS;PRESSURE;CURRENT_ERROR;PRESSURE_ERROR;)
+    Serial.print("0,4,");
+    Serial.print(nSteps);
+    Serial.print(";");
+    Serial.print(pressure);
+    Serial.print(";");
+    Serial.print(currentError);
+    Serial.print(";");
+    Serial.print(pressureError);
+    Serial.println(";");
+    nSteps = 0;                                  //resets the counter (amount of steps) that will be sent to the rPi
 }
 
-void openGripper(int pulser, int preasure){
-  int full_rotations = pulser/1024;
-  int rest_rotations = pulser%1024;
- //volatile int pulse_cnter = 0;
-    Serial.print("Full_rotations ");
-    Serial.println(full_rotations);
-
-    Serial.print("rest_rotations ");
-    Serial.println(rest_rotations);
-  for(int i = 0; i >= full_rotations; i++){
+void openGripper(int pulser, int setPreassure){
+  preassureRef = setPreassure;                   //Set reference preassure 
+  nSteps = 0;                                   //resets the counter (amount of steps) that will be sent to the rPi
+  int full_rotations = pulser/1024;             //Divide the total amount of steps into batches of 1024
+  int rest_rotations = pulser%1024;             //Any remaining steps that does not amount to a full 1024
+  
+    
+  for(int i = 0; i < full_rotations; i++){      //Run the number of batches that equals 1024 steps a piece
     CW(1024, 75,3);
-    //pulse_cnter += 1024;
-    Serial.print("nSteps: ");
-    Serial.println(nSteps);
-    delay(3000);
-
-    
+    delay(3000);                                //Wait for motor to turn the number of steps instructed before sending next batch
     }
-    CW(rest_rotations, 75,3);
-    //pulse_cnter = pulse_cnter + rest_rotations;
-    Serial.print("nSteps: ");
-    Serial.println(nSteps);
-    delay(3000);
-    
+   
+    CW(rest_rotations, 75,3);                   //Run the remaining number of steps
+    delay(3000);                                //Wait for motor to turn the number of steps instructed before progressing with program
+
+    //Sending response to rPi: message = (ID,DATA_POINTS,STEPS;PRESSURE;CURRENT_ERROR;PRESSURE_ERROR;)
+    Serial.print("1,4,");
+    Serial.print(nSteps);
+    Serial.print(";");
+    Serial.print(pressure);
+    Serial.print(";");
+    Serial.print(currentError);
+    Serial.print(";");
+    Serial.print(pressureError);
+    Serial.println(";");
+    nSteps = 0;                                  //resets the counter (amount of steps) that will be sent to the rPi
+}
+
+void acknowledgeError(int resetPressure, int resetCurrent){
+  if(resetPressure == 1){    
+    pressureError = false;
+    }
+
+  if(resetCurrent == 1){    
+    currentError = false;
+    }
 }
