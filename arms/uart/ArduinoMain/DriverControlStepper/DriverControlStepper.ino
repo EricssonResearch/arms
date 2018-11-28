@@ -10,12 +10,28 @@ const int EN = 2; //PD2 Shuts of the board directly by connecting emitters of tr
 const int STEP = 3; // Input pin for steps, minimum pulse can be 40ns.
 const int DECAY = 5; // Selects the decay mode for the motor
 const int DIR = 7; // Sets the direction of the stepper motor, 1 is CW and 0 is CC2
+const int pressure_voltage = A5;
 
 //Variables
 volatile int MODE = 0; // selects the step mode of the motor
 volatile int nPulse = 0; //Counter variable for number of pulses (do not mistake this for steps!)
 volatile int pulseRef = 0; // The reference value for numbers of pulses
 volatile int pulseFactor = 1; // makes sure that the motor goes same length independent of selected mode
+volatile boolean runflag = false;
+
+//from timer interrupt to measure sensor values
+static boolean state = false;            //This boolean switches between if the current OR the pressure is measured at each timer interrupt
+volatile boolean Current_Error = false;  //These flags will be set to TRUE if either current or pressure is too high
+volatile boolean Pressure_Error = false; // Needs to be volatile since it's accessed both by ISR and main loop
+volatile float pressure = 0.0;
+volatile float current = 0.0;
+volatile int Pressure_ref = 100;
+volatile int nSteps = 0;
+
+
+//testing variables
+boolean time_to_run = true;
+
 
 void setup() {
   //init for pins
@@ -28,7 +44,8 @@ void setup() {
   pinMode(STEP, OUTPUT);
   pinMode(DECAY, OUTPUT);
   pinMode(DIR, OUTPUT);
-  
+  pinMode(pressure_voltage, OUTPUT);
+  analogWrite(pressure_voltage, 255);
 
   //Initial configurations
   digitalWrite(STBY,LOW); // put motorshield in standby
@@ -47,19 +64,61 @@ void setup() {
   TCNT2 = 0; // clear counter
   OCR2A = 150; // should be between 80 and 150, OCR2A+1 is the number of clockcycles between the motor pulses.
   TIMSK2 |= 0x02; // Enable OCEIA2 - turn on the Timer 2 interrupt
-  
+
+  //Timer1 Configurations
+  TCCR1A = 0;                            // normal operation
+  //setTimer1Prescaler(8);                 //set pre-scalar to 8
+  TCCR1B = bit(WGM12) | bit(CS12) | bit(CS10);   // CTC, no pre-scaling (OG: CS10), CS11 should be prescalar 8.
+  OCR1A =  2500;                            // compare A register value (1000 * clock speed) THIS NEEDS TUNING OG: 999
+  TIMSK1 = bit (OCIE1A);                 // interrupt on Compare A Match
 
 
 }
 
 void loop() {
-CW(2000,75,2);
+  /*
+  while(pressure > 50){
+    CW(100,150,2);
+    Serial.print("running CW: ");
+    Serial.println(pressure);
+    delay(1000);
+  }
+//Serial.println("Restarting loop");
+//CW(1000,150,2);   //CW öppnar
 
-//delay(1000);
-CCW(2000,180,2);
-//delay(1000);
+while(pressure < 400){
+  CCW(100,150,2);
+  Serial.print("running CCW: ");
+  Serial.println(pressure);
+  delay(1000);
+}
+*/
+//delay(2000);
 
-  
+/*
+Serial.println("restarting loop");
+runflag = true;
+delay(1000);
+CCW(100,150,2);    //CCW stänger
+*/
+////if(time_to_run){
+//
+//  CW(1024,75,3);
+//  delay(2000);
+//  time_to_run = false;
+////}
+//
+
+openGripper(4000,10);
+delay(1000);
+closeGripper(4000,10);
+delay(1000);
+/*
+runflag = true;
+CW(500,75,3);
+delay(2500);
+*/
+
 }
 
 
@@ -98,7 +157,7 @@ switch( prescaler){
   break;
 
   case 1024: // 1/1024 prescale
-  TCCR2B|= _BV(CS20)|_BV(CS21)|_BV(CS20);
+  TCCR2B|= _BV(CS22)|_BV(CS21)|_BV(CS20);
   break;
   
 }
@@ -222,6 +281,33 @@ void setMode(int mode){
   
 
 //Interrupts
+
+ISR(TIMER1_COMPA_vect){
+  state = !state;                        // toggle state
+  if(state){                             //Here we measure the current sensor
+    current = analogRead(A1);
+    if(current < 470){                   //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
+      //Serial.print("A2 current: ");
+      //Serial.println(current);
+      Current_Error = true;
+      runflag = false;
+    }
+  }
+  else{                                  //Here we measure the pressure sensor
+    pressure = analogRead(A0);
+    if((pressure >= Pressure_ref) && ~(PIND&0x80)){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
+      runflag = false;
+    }
+    if(pressure >= 700){                    //This value needs tuning, roughly 300-400 range ish
+      //Serial.print("A1 pressure: ");
+      //Serial.println(pressure);
+      Pressure_Error = true;
+      runflag = false;
+    }
+    }
+}
+
+
 ISR(TIMER2_COMPA_vect){
   /*
  * Timer interrupt vector based on OCR2A.
@@ -229,13 +315,15 @@ ISR(TIMER2_COMPA_vect){
  * Emitts a short pulse with 4 cpu cycles pulse width.
  * Increments the pulse counter.
  */
+ //cli();
   if((PINB&0x01)&&(PIND&0x04)){ //Check if EN and STBY is high.
-    
+    if(runflag == 1){
     // Have we reached the reference?
     if(nPulse >= pulseRef){ //YES
           //Turn off the stepper drive
           digitalWrite(EN, LOW);
           digitalWrite(STBY, LOW);
+          runflag = false;
     }
     else{//NO
       
@@ -245,6 +333,8 @@ ISR(TIMER2_COMPA_vect){
     nPulse++;
     }
   }
+  }
+  //sei();
 }
 
 /*
@@ -258,6 +348,7 @@ void CCW(int steps, int frequency, int mode){
    * Important to notice that *frequency* and *mode* are coupled. This means that
    * depending on *mode* the *frequency* must be in certain ranges
    */
+  
   setMode(mode); // Set step size
   counterCLEAR(); // reset the timer two counter
   setDir(0); // Set counterclock-wise direction
@@ -267,14 +358,24 @@ void CCW(int steps, int frequency, int mode){
   
   digitalWrite(EN, HIGH); 
   digitalWrite(STBY, HIGH);
-  while(nPulse < pulseRef){ // Wait until the reference has been reached
+  runflag = true;
+  Serial.println("CCW");
+  while(runflag){ // Wait until the reference has been reached
 //    Serial.print("nPulse: ");
 //    Serial.println(nPulse);
+      //Serial.print("runflag: ");
+//      //Serial.println(runflag);
+//      Serial.print("Current: ");
+//      Serial.println(current);
+//      Serial.print("Pressure: ");
+//      Serial.println(pressure);
+      //delay(500);
   }
   digitalWrite(EN, LOW);
   digitalWrite(STBY, LOW);
   counterOFF(); // Turn the Timer2 interrupt off
   setPulseRef(0); // Set the pulse reference to zero
+  nSteps = nSteps + nPulses/pulseFactor;
   counterCLEAR(); // clear the nPulse variable
 }
 void CW(int steps, int frequency, int mode){
@@ -284,6 +385,7 @@ void CW(int steps, int frequency, int mode){
  * Important to notice that *frequency* and *mode* are coupled. This means that
  * depending on *mode* the *frequency* must be in certain ranges
  */
+  
   setMode(mode); // Set step size
   counterCLEAR(); // reset the timer two counter
   setMode(mode); // Set step size
@@ -293,13 +395,76 @@ void CW(int steps, int frequency, int mode){
   counterON();  // activate Timer2 interrupt 
   digitalWrite(EN, HIGH);
   digitalWrite(STBY, HIGH);
-    while(nPulse < pulseRef){
+  runflag = true;
+  //Serial.println("CW");
+    while(runflag){
 //        Serial.print("nPulse: ");
 //        Serial.println(nPulse);
+          //Serial.print("runflag: ");
+//          //Serial.println(runflag);
+//          Serial.print("Current: ");
+//          Serial.println(current);
+//          Serial.print("Pressure: ");
+//          Serial.println(pressure);
+          //delay(500);
       }
     digitalWrite(EN, LOW);
     digitalWrite(STBY, LOW);
   counterOFF(); // Turn the Timer2 interrupt off
   setPulseRef(0); // Set the pulse reference to zero
+  nSteps = nSteps + nPulses/pulseFactor;
   counterCLEAR(); // clear the nPulse variable
+}
+
+void closeGripper(int pulser, int preasure){
+  int full_rotations = pulser/1024;
+  int rest_rotations = pulser%1024;
+ volatile int pulse_cnter = pulser;
+      Serial.print("Full_rotations ");
+    Serial.println(full_rotations);
+
+    Serial.print("rest_rotations ");
+    Serial.println(rest_rotations);
+  for(int i = 0; i >= full_rotations; i++){
+    CCW(1024, 75,3);
+
+    pulse_cnter -= 1024;
+    Serial.print("Pulse counter: ");
+    Serial.println(pulse_cnter);
+    delay(3000);
+
+    
+    }
+    CCW(rest_rotations, 75,3);
+    pulse_cnter = pulse_cnter - rest_rotations;
+    Serial.print("Pulse counter: ");
+    Serial.println(pulse_cnter);
+    delay(3000);
+    
+}
+
+void openGripper(int pulser, int preasure){
+  int full_rotations = pulser/1024;
+  int rest_rotations = pulser%1024;
+ //volatile int pulse_cnter = 0;
+    Serial.print("Full_rotations ");
+    Serial.println(full_rotations);
+
+    Serial.print("rest_rotations ");
+    Serial.println(rest_rotations);
+  for(int i = 0; i >= full_rotations; i++){
+    CW(1024, 75,3);
+    //pulse_cnter += 1024;
+    Serial.print("nSteps: ");
+    Serial.println(nSteps);
+    delay(3000);
+
+    
+    }
+    CW(rest_rotations, 75,3);
+    //pulse_cnter = pulse_cnter + rest_rotations;
+    Serial.print("nSteps: ");
+    Serial.println(nSteps);
+    delay(3000);
+    
 }
