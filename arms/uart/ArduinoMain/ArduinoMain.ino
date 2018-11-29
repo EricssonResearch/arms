@@ -55,12 +55,18 @@ volatile uint32_t nPulse = 0; //Counter variable for number of pulses (do not mi
 volatile uint32_t pulseRef = 0; // The reference value for numbers of pulses
 uint32_t pulseFactor = 1; // makes sure that the motor goes same length independent of selected mode
 uint32_t nSteps = 0;       //Counter to send back actual emitted pulses to the rPi
+
 //sensor variables
-volatile int preassureRef = 100;    // Soft-stop for claw to stop when reached, does not trigger pressure_error
+volatile int pressureRef = 100;    // Soft-stop for claw to stop when reached, does not trigger pressure_error
 volatile int pressure = 0.0;      // variable that saves the measured pressure every interrupt by TIMER1
 volatile int current = 0.0;       // variable that saves the measured current every interrupt by TIMER1
-const int pressureCritical = 900; //Maximum pressure 
+const int pressureCritical = 900; //Maximum pressure allowed. if tnhis is ever reached, the claw shuts down
+const int currentWARNING = 495;    //
 const int currentCritical = 460;  //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
+const int maxCurrentSurge = 10;   //the number of allowed spikes for each calling of either CW or CCW
+volatile int countCurrentSurge = 0;//the running count of current surges registered, is reset after completion of every CW/CCW
+
+
 //------------------------------------------|FLAGS|----------------
 static boolean state = false;            //This boolean switches between if the current OR the pressure is measured at each timer interrupt
 volatile boolean runFlag = false;   //flag which allows pulses to be emitted, is set to TRUE every time CW or CCW is called
@@ -418,7 +424,11 @@ void setMode(int mode){
     break;
 }
 }
-  
+
+
+void clearCurrentSurge(){
+  countCurrentSurge = 0;
+}
 
   
 
@@ -428,14 +438,23 @@ ISR(TIMER1_COMPA_vect){
   state = !state;                        // toggle state
   if(state){                             //Here we measure the current sensor
     current = analogRead(CUR);
+    if(current < currentWARNING){           //higher current means lower value from the ADC
+      countCurrentSurge++;
+      //Serial.println(countCurrentSurge);
+      if(countCurrentSurge >= maxCurrentSurge){
+        runFlag = false;
+        currentError = true;
+      }
+    }
+    
     if(current < currentCritical){       //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
-      currentError = true;
-      //runFlag = false;
+      currentError = true;               //
+      runFlag = false;
     }
   }
   else{                                  //Here we measure the pressure sensor
     pressure = analogRead(PRE);
-    if((pressure >= preassureRef) && (PIND&0x07)){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
+    if(pressure >= pressureRef && ((PIND&0x80>>7) == 0) ){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
       runFlag = false;
     }
     if(pressure >= pressureCritical){        //Making sure we never squeeze harder than a set value. This raises pressureError
@@ -486,7 +505,7 @@ void CCW(int steps, int frequency, int mode){
    * Important to notice that *frequency* and *mode* are coupled. This means that
    * depending on *mode* the *frequency* must be in certain ranges
    */
-  
+  clearCurrentSurge();
   setMode(mode);                                   // Set step size
   counterCLEAR();                                 // reset the timer two counter
   setDir(0);                                      // Set counterclock-wise direction
@@ -496,10 +515,11 @@ void CCW(int steps, int frequency, int mode){
   
   digitalWrite(EN, HIGH); 
   digitalWrite(STBY, HIGH);
-  if(pressureError == 0){                      //If a pressure error has occurred, don't run this function
+  if(currentError == 0 && pressureError == 0 && (pressure < pressureRef) ){//If a pressure error has occurred, don't run this function
     runFlag = true;
   }
   while(runFlag){                               // Wait until the reference has been reached
+  //Serial.println(current);
   }
   digitalWrite(EN, LOW);
   digitalWrite(STBY, LOW);
@@ -507,6 +527,7 @@ void CCW(int steps, int frequency, int mode){
   setPulseRef(0);                               // Set the pulse reference to zero
   nSteps = nSteps + nPulse/pulseFactor;         //Cumulatively add the number of steps taken
   counterCLEAR();                               // clear the nPulse variable
+  clearCurrentSurge();
 }
 
 
@@ -527,10 +548,11 @@ void CW(int steps, int frequency, int mode){
   counterON();                                  // activate Timer2 interrupt 
   digitalWrite(EN, HIGH);
   digitalWrite(STBY, HIGH);
-  if(pressureError == 0){                       //If a pressure error has occurred, don't run this function
+  if(currentError == 0 && pressureError == 0){   //If a pressure error has occurred, don't run this function
     runFlag = true;
   }
     while(runFlag){                              //Wait for the pulses to reach the reference
+      //Serial.println(current);
       }
     digitalWrite(EN, LOW);
     digitalWrite(STBY, LOW);
@@ -543,7 +565,7 @@ void CW(int steps, int frequency, int mode){
 //-----------------------------------------------|COMMAND FUNCTIONS|-------------------------------------------------------------
 
 void closeGripper(int pulser, int setPreassure){
-  preassureRef = setPreassure;                  //Set reference preassure
+  pressureRef = setPreassure;                  //Set reference preassure
   nSteps = 0;                                   //resets the counter (amount of steps) that will be sent to the rPi
   int full_rotations = pulser/1024;             //Divide the total amount of steps into batches of 1024
   int rest_rotations = pulser%1024;             //Any remaining steps that does not amount to a full 1024
@@ -570,7 +592,7 @@ void closeGripper(int pulser, int setPreassure){
 }
 
 void openGripper(int pulser, int setPreassure){
-  preassureRef = setPreassure;                   //Set reference preassure 
+  pressureRef = setPreassure;                   //Set reference preassure 
   nSteps = 0;                                   //resets the counter (amount of steps) that will be sent to the rPi
   int full_rotations = pulser/1024;             //Divide the total amount of steps into batches of 1024
   int rest_rotations = pulser%1024;             //Any remaining steps that does not amount to a full 1024

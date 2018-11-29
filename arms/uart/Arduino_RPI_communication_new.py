@@ -15,6 +15,7 @@ import sys
 import serial
 import time
 import threading
+from threading import Event
 
 # Module originates form the package pyserial, needs to be imported in order to
 # work https://github.com/pyserial/pyserial
@@ -92,6 +93,7 @@ class GetHWPoller(threading.Thread):
         self.join()
 
 
+
 class Arduino():
     """Class to interface with asynchrounous serial hardware.
     Repeatedly polls hardware, unless we are sending a command
@@ -107,15 +109,25 @@ class Arduino():
         self.command = ""
         self.load()
         self.connect()
+        
         #Attributes of the sent message
-        self.ID = ""
-        self.fields = ""
-        self.data = ""
+        self.ID_sent = ""
+        self.fields_sent = ""
+        self.data_sent = ""
+        
+        #Attributes 
         
         #Attributes for the received message
         self.ID_received = ""
         self.fields_received = ""
         self.data_received = ""
+        
+        #Attributes for open and close Gripper
+        self.pulses_sent = 0
+        self.pressure_sent = 0
+        
+        #Attributes for Solenoid
+        
         
         
 
@@ -141,7 +153,7 @@ class Arduino():
         """ Send a command to the hardware"""
         while self.interlock: # busy, wait for free, should timout here 
             #print("in write_HW: waiting for interlock")
-            ard_log.info("in write_HW: waiting for interlock")
+            #ard_log.info("in write_HW: waiting for interlock")
             time.sleep(self.sleeptime)
             sys.stdout.flush()
         #implementation of a primitive semaphore    
@@ -341,6 +353,7 @@ class Arduino():
             #print("printing msg[0]" + msg[0])
             self.fields_received = msg[1]
             self.data_received = msg[2].strip("#").split(";")
+            print(self.data_received)                                                                                     ##PRINTING HERE
             ard_log.info('Received - msg_id:%s, num_fields:%s'%(self.ID_received,self.fields_received))
             
             
@@ -349,10 +362,49 @@ class Arduino():
             function_vec[int(self.ID_received)]() #Execute the function given by the command
             ard_log.info('Executed Command %s'%(self.ID_received))
             
-        return
+        return True
     
     def command_close(self):
-        ard_log.info("Command %s sucessful" %(self.command))
+        '''
+        This subfunction checks that the data received matches the data sent. If that is the case
+        the command is deemed successful. Otherwise, it checks what went wrong and logs this.
+        A little bit of slack is introduced so that the executed number of pulses and force is between
+        0.9*sent < executed < 1.1*sent. This probably should be refined
+        
+        Received message should be: data_received = [pulses, direction, force]
+        '''
+        print(self.data_received)
+        self.successful_command = True
+        
+        
+        
+        
+        '''
+        print(self.data_received)
+        if (self.data_received == self.data_sent):
+            self.successful_command = True
+            ard_log.info("Command %s sucessful" %(self.command))
+        #elif (self.direction != float(self.data_received[1])):
+         #   ard_log.error("Gripper went wrong direction")
+        elif (self.pulses*0.5 > float(self.data_received[0])):
+            ard_log.error("Executed less pulses than expected")
+        elif (self.pulses*2 < float(self.data_received[0])):
+            ard_log.error("Executed more pulses than expected")
+        #elif(self.expected_force*0.9 > float(self.data_received[1])):
+         #   ard_log.error("Executed force is too low")
+        elif(self.expected_force*1.1 < float(self.data_received[1])):
+            ard_log.error("Executed force is too high")
+        elif(self.pulses*0.5 < float(self.data_received[0]) < self.pulses*1.5 and self.expected_force*0.5 < float(self.data_received[1]) < self.expected_force*1.5):
+            self.successful_command = True
+            ard_log.info("Command %s sucessful" %(self.command))
+        else:
+            ard_log.debug("Jumping into else")
+            if(self.pulses == float(self.data_received[0])):
+                ard_log.debug("pulses == data_received[0]")
+            if(self.expected_force == float(self.data_received[1])):
+                ard_log.debug("force == data_received[2]")
+        self.successful_command = True
+        '''
         return
     
     def command_open(self):
@@ -363,5 +415,43 @@ class Arduino():
         ard_log.error("Command %s failed" %(self.command))
         return
     def command_info(self):
-        ard_log.info("Current state is: revolutions:%s direction:%s pressure: %s" %(self.data[0], self.data[1], self.data[2] )  )
-        return          
+        ard_log.info("Current state is: revolutions:%s direction:%s pressure: %s" %(self.data_sent[0], self.data_sent[1], self.data_sent[2] )  )
+        return      
+
+    def close_gripper(self):
+        '''
+        This command will close the gripper completely and make sure that the force between pinchers reaches 24N, given the slack allowed in command_close.
+        It creates a message as follows: [ID, length, pulses, expected_force]
+        '''
+        self.command = "Close Gripper"
+        #[self.pulses, self.direction] = self.getTranslation(0) #this zero is the desired distance between pincers
+        #self.pulses = 1000
+        #self.direction = 1
+        #self.ID = 0
+        #self.expected_force = 200 #expected force in N
+        self.data_sent = [self.pulses_sent,self.pressure_sent]
+        msg = str(self.ID_sent) + "," + str(2) + "," + str(self.pulses_sent) + ";" + str(self.pressure_sent) + ";"
+        #ard_log.info("Message being sent is %s" %(msg)) not logging here, since the send command logs the message
+        self.successful_command = False #set the flag to false
+        '''
+        try:
+            self.send(msg)
+        except:
+            ard_log.error("Re-establishing connection to Arduino")
+            self.disconnect()
+            self.connect()
+            self.send(msg)
+        '''
+        self.send(msg)
+        
+        while(self.successful_command == False): #flag will be set to TRUE when checking return message
+            Event().wait(3.0) #creates a new thread that acts as a timer to reduce CPU useage
+            #ard_log.debug("inside the wait timer thingy")
+        
+        ard_log.info("Gripper closed")
+        self.command = ""
+        return
+    
+
+            
+            
