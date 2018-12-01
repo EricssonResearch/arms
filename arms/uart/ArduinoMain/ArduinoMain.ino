@@ -658,7 +658,8 @@ void acknowledgeError(int resetPressure, int resetCurrent){
     Serial.println(";");
 }
 
-void sendPressure();
+void sendPressure(){
     Serial.print("Current Pressure is: ");
     Serial.println(pressure);
+}
     
