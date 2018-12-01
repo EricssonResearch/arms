@@ -11,7 +11,7 @@
   
   
   "uart_config": {
-    "port" : "COM9",
+    "port" : "COM7",
     "baudrate": 9600,
     "bytesize": 8,
     "parity": "N",
@@ -22,5 +22,15 @@
     "dsrdtr":0 ,                
     "writeTimeout": 2,
     "sleeptime": 0.1
+    },
+    
+   "arduino_config": {
+    "adjustment_pulses" : 100 ,
+    "upper_bound" : 1.1  ,
+    "upper_bias" : 0 ,
+    "lower_bound" : 0.9 ,
+    "lower_bias" : 0, 
+    "max_recursion" : 2
+    
     }
 }
