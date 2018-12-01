@@ -177,6 +177,11 @@ void loop() {
           case 4:
             acknowledgeError(int(Data[0]),int(Data[1]));    
             break;
+
+          case 5:
+            sendPressure();
+            break;
+          
           
        }
     }
@@ -435,6 +440,7 @@ void clearCurrentSurge(){
 //------------------------------------------------------|INTERRUPTS|----------------------------------------------------------
 
 ISR(TIMER1_COMPA_vect){
+  /*
   state = !state;                        // toggle state
   if(state){                             //Here we measure the current sensor
     current = analogRead(CUR);
@@ -452,7 +458,8 @@ ISR(TIMER1_COMPA_vect){
       runFlag = false;
     }
   }
-  else{                                  //Here we measure the pressure sensor
+  */
+  //else{                                  //Here we measure the pressure sensor
     pressure = analogRead(PRE);
     if(pressure >= pressureRef && ((PIND&0x80>>7) == 0) ){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
       runFlag = false;
@@ -461,7 +468,7 @@ ISR(TIMER1_COMPA_vect){
       pressureError = true;
       runFlag = false;
     }
-    }
+    //}
 }
 
 
@@ -650,3 +657,8 @@ void acknowledgeError(int resetPressure, int resetCurrent){
     Serial.print(currentError);
     Serial.println(";");
 }
+
+void sendPressure();
+    Serial.print("Current Pressure is: ");
+    Serial.println(pressure);
+    
