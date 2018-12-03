@@ -105,7 +105,7 @@ class Arduino():
         self.callback = None
         self.verbose = True # for debugging
 
-        #Attribites for the class
+        #Attributes for the class
         self.command = ""
         self.load()
         self.connect()
@@ -373,7 +373,7 @@ class Arduino():
             
             
             function_vec = [self.command_close, self.command_open,self.command_activate_solenoid, self.command_deactivate_solenoid, self.command_acknowledge_error, self.command_request_info]
-            #function_ID  = [        "0"     ,     "1"     ,     "2"        ,     "3 ]
+            #function_ID  = [        "0"      ,         "1"      ,              "2"             ,               "3                ,                  "4"          ,            "5"           ]
             function_vec[int(self.ID_received)]() #Execute the function given by the command
             ard_log.info('Executed Command %s'%(self.ID_received))
             
@@ -397,7 +397,7 @@ class Arduino():
         
         #update the global variables
         self.pressure = self.pressure_received
-        self.pulses -= self.pulses_received
+        self.pulses += self.pulses_received
         
         #Set appropriate flags that tell which situation we're in
         self.pulseLow = (self.pulses_sent < self.pulses_received)
@@ -427,7 +427,7 @@ class Arduino():
         
         #update the global variables
         self.pressure = self.pressure_received
-        self.pulses += self.pulses_received
+        self.pulses -= self.pulses_received
         
         
         #Set appropriate flags that tell which situation we're in
@@ -454,10 +454,13 @@ class Arduino():
     
     def command_acknowledge_error(self):
         self.pressure_error = int(self.data_received[0])
+        self.Arduino_replied = True
         return
         
     def command_request_info(self):
-        ard_log.info("Current state is: revolutions:%s direction:%s pressure: %s" %(self.data_sent[0], self.data_sent[1], self.data_sent[2] )  )
+        self.pressure_received = float(self.data_received[0])
+        ard_log.info("Pressure at this time is: %s" %(self.data_received[0])  )
+        self.Arduino_replied = True
         return      
 
     def close_gripper(self,pulses,pressure):
@@ -484,6 +487,7 @@ class Arduino():
             
         #Make sure that we don't get stuck in too many recursions
         if(self.adjust_counter >= self.max_recursion):
+            self.obstacleFlag = True
             ard_log.error("in function: "+self.command+" Maximum number of recursion reached")
             self.adjust_counter = 0;
             return
@@ -639,3 +643,11 @@ class Arduino():
         ard_log.debug("Command successful")      
         return
             
+    def calibrate_gripper(self):
+        while(self.pressure_received < 5):
+            self.close_gripper(100,5)
+        while(self.pressure_received > 10):
+            self.open_gripper(50,5)
+        ard_log.debug("Claw calibrated to be closed with a pressure less than 10, opening Gripper with 6000 pulses")
+        self.open_gripper(6000,0)
+        self.pulses = 0
