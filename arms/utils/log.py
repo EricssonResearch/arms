@@ -70,9 +70,13 @@ def get_logger(name):
 
 
 # The different loggers used (alphabetical order).
+abb = get_logger('abb')
 app = get_logger('app')
+ard_log = get_logger('ard_log')
+camera = get_logger('camera')
 config = get_logger('config')
 log = get_logger('log')
 camera = get_logger('camera')
 sensor = get_logger('sensor')
 ard_log = get_logger('ard_log')
+socket = get_logger('socket')
