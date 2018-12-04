@@ -211,12 +211,19 @@ DResponse sensorRead(void)
 
 int main()
 {
+	sensorConnect("192.168.1.1");
+	
+	DResponse dResponse;
+	dResponse = sensorRead();
+	fprintf(stdout, "%f\r\n", dResponse.Fx);
+	sensorDisconnect();
+	/*
 	char * argv[2];
 	argv[1] = "192.168.1.1";
 	FTResponse ftResponse;
 	unsigned int i;
 	int readSuccess;
-	SOCKET_HANDLE socketHandle;		/* Handle to UDP socket used to communicate with Ethernet DAQ. */
+	SOCKET_HANDLE socketHandle;		/* Handle to UDP socket used to communicate with Ethernet DAQ. 
 	
 	if (Connect(&socketHandle, argv[1], PORT) != 0) {
 		fprintf(stderr, "Could not connect to device...\r\n");
@@ -248,6 +255,7 @@ int main()
 
 	Close(&socketHandle);
 	return 0;
+	*/
 }
 
 
