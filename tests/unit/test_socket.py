@@ -39,11 +39,12 @@ def test_get_config_and_connect():
     """
     client = SocketClient("test_socket")
     data = {"socket": {"test_socket": {"host": host, "port": port}}}
-    client.connect = mock.MagicMock()
+    mock_connect = mock.MagicMock()
+    client.connect = mock_connect
 
     with mock.patch.object(config.var, 'data', data):
         client.get_config_and_connect()
-        client.connect.assert_called_with(host, port)
+        mock_connect.assert_called_with(host, port)
 
 
 config_none = None
@@ -65,16 +66,17 @@ def test_get_config_and_connect_fail(config_data):
     """WHEN the function 'get_config_and_connect' is called, IF the config
     entry containing the host name and port number to the specified client
     (client_name) is of the wrong format or does not exist, THEN no attempt
-    to connect with the respective server shall be made and the boolean value
-    False shall be returned.
+    to connect with the respective server shall be made and the boolean values
+    [False, False] shall be returned.
     """
     client = SocketClient("test_socket")
-    client.connect = mock.MagicMock()
+    mock_connect = mock.MagicMock()
+    client.connect = mock_connect
 
     with mock.patch.object(config.var, 'data', config_data):
         ok = client.get_config_and_connect()
-        client.connect.assert_not_called()
-        assert ok is False
+        mock_connect.assert_not_called()
+        assert ok == [False, False]
 
 
 def test_connect():
@@ -185,7 +187,7 @@ class SocketServer:
         """Closes the socket and the connection to the client."""
         if self.conn is not None:
             self.conn.close()
-            
+
         if self.sock is not None:
             self.sock.close()
 
