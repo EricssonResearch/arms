@@ -4,6 +4,7 @@ import ast
 import json
 from arms.misc.socket import SocketClient
 from arms.utils import log
+from arms.sensor import Sensor
 
 
 class ABB:
@@ -40,6 +41,48 @@ class ABB:
         case = 10
         ok, data = self._exchange(case)
         return ok, data
+
+    def move(self, dx, dy, dz):
+        
+
+    def insert_SFP(self, sensor)
+        z_tot = 0
+        stepSizeXY = 0.1
+        stepSizeZ = 0.1
+        while True:
+            sensor.read()
+            if sensor.values.Fz > 0.1 or sensor.values.Tx > 0.1 or sensor.values.Ty > 0.1:
+                break
+            self.move(0,0,stepSizeZ)
+            z_tot += stepSizeZ
+            if z_tot > 1:
+                break
+        while sensor.values.Fz < 24:
+            sensor.read()
+            dx = dy = dz = 0
+            if z_tot <= 1:
+                if self.values.Tx >= 1:
+                    dy = -stepSizeXY
+                elif self.values.Tx <= -1:
+                    dy = stepSizeXY
+                    
+                if self.values.Ty >= 1:
+                    dx = -stepSizeXY
+                elif self.values.Ty <= -1:
+                    dx = stepSizeXY
+                dz = stepSizeZ
+                self.move(0, 0, -dz)
+            else:
+                if self.values.Fz < 24:
+                    dz = stepSizeZ
+                    z_tot += dz
+            
+            if dx > 0 and dy > 0:
+                self.move(dx, dy, 0)
+            
+            self.move(0, 0, dz)
+            
+        
 
     def _exchange(self, case, data=None):
         """Exchanges messages with the ABB robot in two steps:

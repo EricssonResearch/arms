@@ -83,23 +83,6 @@ class Sensor:
         log.sensor.debug("Ty: " + str(self.values.Ty) + "Nm")
         log.sensor.debug("Tz: " + str(self.values.Tz) + "Nm")
        
-    def adjust(self, z_tot):
-        self.read()
-        dx = dy = dz = 0
-        if z_tot <= 1:
-            if self.values.Tx >= 1:
-                dy = -0.1
-            elif self.values.Tx <= -1:
-                dy = 0.1
-                
-            if self.values.Ty >= 1:
-                dx = -0.1
-            elif self.values.Ty <= -1:
-                dx = 0.1
-            dz = -0.1
-        else:
-            if self.values.Fz < 24:
-                dz = 1
     
     def zero(self, main = False):
         self.read()

@@ -1,11 +1,14 @@
 """Initialization of arms."""
 import arms.config.config as config
 import arms.utils.log as log
-#from arms.camera.camera import Camera
-#import RPi.GPIO as GPIO
+from arms.camera.camera import Camera
 from time import sleep
-import numpy as np
-import arms.sensor.sensor as S
+from arms.sensor.sensor import Sensor
+from arms.arduino.arduino import Arduino
+
+sensor = Sensor()
+camera = Camera()
+arduino = Arduino()
 
 
 def main():
