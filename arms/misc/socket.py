@@ -25,9 +25,10 @@ class SocketClient:
         server.
 
         Return:
-            - True, if a setting entry belonging to the client (client_name)
-            could be found and no data type violation occurred.
-            - False, if not.
+			- [#1, #2]
+				#1: True, if a setting entry belonging to the client (client_name)
+					could be found and no data type violation occurred. False, if not.
+				#2: True, if a connection could be made. False, if not.
         """
         try:
             c = config.var.data['socket'][self.name]
@@ -38,11 +39,11 @@ class SocketClient:
                              'socket {} in the configuration file ('
                              'arms/config/config.json). Hence, no '
                              'connection could be made.'.format(self.name))
-            return False
+            return [False, False]
 
         if isinstance(host, str) and isinstance(port, int):
             ok = self.connect(host, port)
-            return ok
+            return [True, ok]
         else:
             log.socket.error('Data type violation. The host number has to be '
                              'provided as a string and the port number as an '
@@ -50,7 +51,7 @@ class SocketClient:
                              'arms/config/config.json). In consequence, the '
                              'socket {} could not connect to the server.'
                              .format(self.name))
-            return False
+            return [False, False]
 
     def connect(self, host, port):
         """Establishes a connection to a server.
