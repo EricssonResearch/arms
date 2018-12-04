@@ -1,6 +1,7 @@
 """Utilities related to logging."""
 
 import logging
+import time
 from arms.config import config
 
 # Log format to use.
@@ -20,13 +21,60 @@ LOG_LEVELS = {
 ERROR = False
 FILE_LEVEL = logging.DEBUG
 CONSOLE_LEVEL = logging.WARNING
-
 try:
     CONFIG = config.var.data['logger']
     FILE_LEVEL = LOG_LEVELS[CONFIG['file']['level'].upper()]
     CONSOLE_LEVEL = LOG_LEVELS[CONFIG['console']['level'].upper()]
 except (TypeError, KeyError):
     ERROR = True
+
+
+class SocketClientHandler(logging.Handler):
+    """Reports the logging output to a socket server.
+
+    Attributes:
+        client: Has to be an instance of arms/misc/socket -> SocketClient.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.client = None
+        self.setLevel(logging.INFO)
+        self.setFormatter(FORMATTER)
+
+    def connect(self):
+        """Connects with the socket server.
+
+        Return:
+            - True, if a connection with the socket server could me made.
+            - False, if an error occurred.
+        """
+        while True:
+            ok, connected = self.client.get_config_and_connect()
+            if not ok:
+                return False
+            if connected:
+                return True
+            else:
+                time.sleep(10)
+
+    def emit(self, record):
+        """Sends the logging output to the socket server."""
+        if self.client is not None:
+            client = record.name
+            level = record.levelno
+            msg = record.message
+
+            data = {
+                "client": client,
+                "level": level,
+                "msg": msg
+            }
+
+            ok = self.client.send(data)
+            if not ok:
+                self.client = None
+
 
 # Initialize handlers.
 FILE = logging.FileHandler('arms/utils/log.log')
@@ -37,11 +85,11 @@ CONSOLE = logging.StreamHandler()
 CONSOLE.setFormatter(FORMATTER)
 CONSOLE.setLevel(CONSOLE_LEVEL)
 
+CLIENT = SocketClientHandler()
+
 
 def __init__():
-    """Reset log file or create a new one in case the respective file does not
-    exist.
-    """
+    """Reset log file."""
     wfile = logging.FileHandler('arms/utils/log.log', mode='w')
     wfile.setLevel(logging.DEBUG)
 
@@ -49,7 +97,7 @@ def __init__():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(wfile)
     logger.info('Log file')
-    logger.info(90*'-')
+    logger.info(90 * '-')
 
 
 def get_logger(name):
@@ -65,6 +113,7 @@ def get_logger(name):
     logger.setLevel(logging.DEBUG)
     logger.addHandler(FILE)
     logger.addHandler(CONSOLE)
+    logger.addHandler(CLIENT)
 
     return logger
 
@@ -76,7 +125,5 @@ ard_log = get_logger('ard_log')
 camera = get_logger('camera')
 config = get_logger('config')
 log = get_logger('log')
-camera = get_logger('camera')
 sensor = get_logger('sensor')
-ard_log = get_logger('ard_log')
 socket = get_logger('socket')
