@@ -24,6 +24,11 @@ class ABB:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def connect(self):
+        """Connects to the socket server."""
+        ok, connected = self.client.get_config_and_connect()
+        return ok, connected
+
     def close(self):
         """Close connection."""
         case = 0

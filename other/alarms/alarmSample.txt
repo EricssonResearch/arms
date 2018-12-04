@@ -1,0 +1,7 @@
+===================================================================================================================================================================================================================
+Date & Time (Local) S Specific Problem                      				MO (Cause/AdditionalInfo)
+===================================================================================================================================================================================================================
+2018-11-22 15:52:19 M Gigabit Ethernet Link Fault         				Subrack=1,Slot=1,PlugInUnit=1,ExchangeTerminalIp=1,GigaBitEthernet=1 (Autonegotiation Failed to Meet Minimum Requirements.)
+2018-11-22 16:03:19 M Network Synch Time from GPS Missing 				Subrack=1,Slot=1,PlugInUnit=1,TimingUnit=1,GpsSyncRef=1 (Cause: Loss of signal)
+2018-11-23 10:23:52 m Link Failure RiLink=1 (No signal detected (link start time-out)   ManagedElement=1,Equipment=1,Subrack=1,Slot=1,PlugInUnit=1,RiPort=A (transportType=NOT_SET)
+
