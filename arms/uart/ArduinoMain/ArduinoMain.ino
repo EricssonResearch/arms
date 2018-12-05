@@ -3,7 +3,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 //#include <TimerOne.h>
-
+//Fixed!
 
 //------------------------------------------ SERIAL COMMUNICATION VARIABLES----------------
 /*
@@ -60,7 +60,7 @@ uint32_t nSteps = 0;       //Counter to send back actual emitted pulses to the r
 volatile int pressureRef = 100;    // Soft-stop for claw to stop when reached, does not trigger pressure_error
 volatile int pressure = 0.0;      // variable that saves the measured pressure every interrupt by TIMER1
 volatile int current = 0.0;       // variable that saves the measured current every interrupt by TIMER1
-const int pressureCritical = 900; //Maximum pressure allowed. if tnhis is ever reached, the claw shuts down
+const int pressureCritical = 400; //Maximum pressure allowed. if tnhis is ever reached, the claw shuts down
 const int currentWARNING = 495;    //
 const int currentCritical = 460;  //480 is around 715mA, 485 is around 600mA, 487 is around 530mA, 490 is around 470mA
 const int maxCurrentSurge = 10;   //the number of allowed spikes for each calling of either CW or CCW
@@ -180,6 +180,14 @@ void loop() {
 
           case 5:
             sendPressure();
+            break;
+
+          case 6:
+            setDir(0);
+            break;
+
+          case 7:
+            setDir(1);
             break;
           
           
@@ -461,8 +469,12 @@ ISR(TIMER1_COMPA_vect){
   */
   //else{                                  //Here we measure the pressure sensor
     pressure = analogRead(PRE);
-    if(pressure >= pressureRef && ((PIND&0x80>>7) == 0) ){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever.
+
+    
+    
+    if(pressure >= pressureRef && ((PIND&0x80) == 0)  ){  //add a reference pressure where we want to stop, otherwise we might stay inside the emergency stop forever. 
       runFlag = false;
+      
     }
     if(pressure >= pressureCritical){        //Making sure we never squeeze harder than a set value. This raises pressureError
       pressureError = true;

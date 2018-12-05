@@ -105,11 +105,7 @@ class Arduino():
         self.callback = None
         self.verbose = True # for debugging
 
-        #Attributes for the class
-        self.command = ""
-        self.load()
-        self.connect()
-        
+
         #Attributes of the sent message
         self.ID_sent = ""
         self.fields_sent = ""
@@ -173,6 +169,10 @@ class Arduino():
         #Attributes for Solenoid
         self.solenoid_active = 0 #boolen if solenoid is active or not
         
+        #Attributes for the class
+        self.command = ""
+        self.load()
+        self.connect()
         
         
 
@@ -221,7 +221,7 @@ class Arduino():
         response = self.ser.read_until()
         self.interlock = False
         if response:
-            if len(response) > 0: # did something write to us?
+            if len(response) > 3: # did something write to us?
                 response = response.strip() #get rid of newline, whitespace
                 if len(response) > 0: # if an actual character
                     if self.verbose:
@@ -363,20 +363,23 @@ class Arduino():
     def evaluate_response(self):
         
         if (self.response != None):
-            msg = self.response.split(",")
-            self.ID_received = msg[0]
-            #print("printing msg[0]" + msg[0])
-            self.fields_received = msg[1]
-            self.data_received = msg[2].strip("#").split(";")
-            print(self.data_received)                                                                                     ##PRINTING HERE
-            ard_log.info('Received - msg_id:%s, num_fields:%s'%(self.ID_received,self.fields_received))
-            
-            
-            function_vec = [self.command_close, self.command_open,self.command_activate_solenoid, self.command_deactivate_solenoid, self.command_acknowledge_error, self.command_request_info]
-            #function_ID  = [        "0"      ,         "1"      ,              "2"             ,               "3                ,                  "4"          ,            "5"           ]
-            function_vec[int(self.ID_received)]() #Execute the function given by the command
-            ard_log.info('Executed Command %s'%(self.ID_received))
-            
+            try:
+                msg = self.response.split(",")
+                self.ID_received = msg[0]
+                #print("printing msg[0]" + msg[0])
+                self.fields_received = msg[1]
+                self.data_received = msg[2].strip("#").split(";")
+                #print(self.data_received)                                                                                     ##PRINTING HERE
+                ard_log.info('Received - msg_id:%s, num_fields:%s'%(self.ID_received,self.fields_received))
+                
+                
+                function_vec = [self.command_close, self.command_open,self.command_activate_solenoid, self.command_deactivate_solenoid, self.command_acknowledge_error, self.command_request_info]
+                #function_ID  = [        "0"      ,         "1"      ,              "2"             ,               "3                ,                  "4"          ,            "5"           ]
+                function_vec[int(self.ID_received)]() #Execute the function given by the command
+                ard_log.info('Executed Command %s'%(self.ID_received))
+            except:
+                ard_log.error('Faulty message recived %s'%(self.response))
+                pass
         return True
     
     def command_close(self):
@@ -402,8 +405,8 @@ class Arduino():
         #Set appropriate flags that tell which situation we're in
         self.pulseLow = (self.pulses_sent < self.pulses_received)
         
-        self.pressureLow = (self.lower_bound*self.pressure_sent - self.lower_bias >= self.pressure_received)
-        self.pressureHigh = (self.upper_bound*self.pressure_sent + self.upper_bias <= self.pressure_received)
+        self.pressureLow = (self.lower_bound*self.pressure_sent - self.lower_bias > self.pressure_received)
+        self.pressureHigh = (self.upper_bound*self.pressure_sent + self.upper_bias < self.pressure_received)
                 
         #Notify close_gripper that a response has been received               
         self.Arduino_replied = True
@@ -433,8 +436,8 @@ class Arduino():
         #Set appropriate flags that tell which situation we're in
         self.pulseLow = (self.pulses_sent < self.pulses_received)
         
-        self.pressureLow = (self.lower_bound*self.pressure_sent - self.lower_bias >= self.pressure_received)
-        self.pressureHigh = (self.upper_bound*self.pressure_sent + self.upper_bias <= self.pressure_received)
+        self.pressureLow = (self.lower_bound*self.pressure_sent - self.lower_bias > self.pressure_received)
+        self.pressureHigh = (self.upper_bound*self.pressure_sent + self.upper_bias < self.pressure_received)
                 
         #Notify close_gripper that a response has been received               
         self.Arduino_replied = True
@@ -544,7 +547,7 @@ class Arduino():
         
         #waiting for Arduino to reply
         while(self.Arduino_replied == False): #flag will be set to TRUE when checking return message
-            Event().wait(3.0) #creates a new thread that acts as a timer to reduce CPU useage
+            Event().wait(1.5) #creates a new thread that acts as a timer to reduce CPU useage
             #ard_log.debug("inside the wait timer thingy")
         
         #Make sure that we don't get stuck in too many recursions
@@ -558,23 +561,38 @@ class Arduino():
         if(not self.pressureHigh and not self.pressureLow and not self.pulseLow):
             ard_log.debug("Command successful")
             self.adjust_counter = 0;
+#            print("Condition 1: recursion: %d" %(self.adjust_counter))
+#            print("self.pulseLow, self.pressureLow, self.pressureHigh \n")
+#            print(self.pulseLow, self.pressureLow, self.pressureHigh)
             return
         
         elif(self.pressureHigh) :
+            
             ard_log.debug("in function: "+self.command+" Pressure_received " + str(self.pressure_received) + " higher than Pressure_sent " + str(self.pressure_sent) + " , adjusting by opening")
             self.adjust_counter = self.adjust_counter + 1
             self.open_gripper(self.adjustment_pulses,self.pressure_sent)
+#            print("Condition 1: recursion: %d" %(self.adjust_counter))
+#            print("self.pulseLow, self.pressureLow, self.pressureHigh \n")
+#            print(self.pulseLow, self.pressureLow, self.pressureHigh)
+#            
             return
         elif(self.pressureLow):
             ard_log.debug( "in function: "+self.command+" Pressure_received " + str(self.pressure_received) + " lower than Pressure_sent " + str(self.pressure_sent) + " , adjusting by closing")
             self.adjust_counter = self.adjust_counter + 1
             self.close_gripper(self.adjustment_pulses,self.pressure_sent)
+#            print("Condition 1: recursion: %d" %(self.adjust_counter))
+#            print("self.pulseLow, self.pressureLow, self.pressureHigh \n")
+#            print(self.pulseLow, self.pressureLow, self.pressureHigh)
             return
                     
         elif(self.pulseLow):
+            
             self.obstacleFlag = True
             ard_log.error("in function: "+self.command+" Obstacle error, cease operation\n Flags: pulseLow:%r pressureLow:%r pressureHigh:%r" %(self.pulseLow,self.pressureLow,self.pressureHigh))
-            return      
+#            print("Condition 1: recursion: %d" %(self.adjust_counter))
+#            print("self.pulseLow, self.pressureLow, self.pressureHigh \n")
+#            print(self.pulseLow, self.pressureLow, self.pressureHigh)
+#            return      
         
         else:
             ard_log.debug("Jumping into else, some undefined case")
@@ -596,7 +614,7 @@ class Arduino():
         
         #waiting for Arduino to reply
         while(self.Arduino_replied == False): #flag will be set to TRUE when checking return message
-            Event().wait(1.0) #creates a new thread that acts as a timer to reduce CPU useage
+            Event().wait(1.5) #creates a new thread that acts as a timer to reduce CPU useage
         ard_log.debug("Command successful")    
         return
     
@@ -610,7 +628,7 @@ class Arduino():
         
         #waiting for Arduino to reply
         while(self.Arduino_replied == False): #flag will be set to TRUE when checking return message
-            Event().wait(1.0) #creates a new thread that acts as a timer to reduce CPU useage
+            Event().wait(1.5) #creates a new thread that acts as a timer to reduce CPU useage
         ard_log.debug("Command successful")
             
         return
@@ -625,7 +643,7 @@ class Arduino():
         
         #waiting for Arduino to reply
         while(self.Arduino_replied == False): #flag will be set to TRUE when checking return message
-            Event().wait(1.0) #creates a new thread that acts as a timer to reduce CPU useage
+            Event().wait(1.5) #creates a new thread that acts as a timer to reduce CPU useage
         ard_log.debug("Command successful")      
         return
     
@@ -639,13 +657,13 @@ class Arduino():
         
         #waiting for Arduino to reply
         while(self.Arduino_replied == False): #flag will be set to TRUE when checking return message
-            Event().wait(1.0) #creates a new thread that acts as a timer to reduce CPU useage
+            Event().wait(1.5) #creates a new thread that acts as a timer to reduce CPU useage
         ard_log.debug("Command successful")      
         return
             
     def calibrate_gripper(self):
         while(self.pressure_received < 5):
-            self.close_gripper(100,5)
+            self.close_gripper(1000,5)
         while(self.pressure_received > 10):
             self.open_gripper(50,5)
         ard_log.debug("Claw calibrated to be closed with a pressure less than 10, opening Gripper with 6000 pulses")
