@@ -591,13 +591,14 @@ void closeGripper(int pulser, int setPreassure){
     
   for(int i = 0; i < full_rotations; i++){      //Run the number of batches that equals 1024 steps a piece
     CCW(1024, 75,3);
-    delay(3000);                                //Wait for motor to turn the number of steps instructed before sending next batch   
+    delay(1500);                                //Wait for motor to turn the number of steps instructed before sending next batch   
     }
     
     CCW(rest_rotations, 75,3);                   //Run the remaining number of steps
-    delay(3000);                                //Wait for motor to turn the number of steps instructed before progressing with program
+    delay(1500);                                //Wait for motor to turn the number of steps instructed before progressing with program
 
     //Sending response to rPi: message = (ID,DATA_POINTS,STEPS;PRESSURE;CURRENT_ERROR;PRESSURE_ERROR;)
+    cli();
     Serial.print("0,4,");
     Serial.print(nSteps);
     Serial.print(";");
@@ -608,6 +609,7 @@ void closeGripper(int pulser, int setPreassure){
     Serial.print(pressureError);
     Serial.println(";");
     nSteps = 0;                                  //resets the counter (amount of steps) that will be sent to the rPi
+    sei();
 }
 
 void openGripper(int pulser, int setPreassure){
@@ -619,13 +621,14 @@ void openGripper(int pulser, int setPreassure){
     
   for(int i = 0; i < full_rotations; i++){      //Run the number of batches that equals 1024 steps a piece
     CW(1024, 75,3);
-    delay(3000);                                //Wait for motor to turn the number of steps instructed before sending next batch
+    delay(1500);                                //Wait for motor to turn the number of steps instructed before sending next batch
     }
    
     CW(rest_rotations, 75,3);                   //Run the remaining number of steps
-    delay(3000);                                //Wait for motor to turn the number of steps instructed before progressing with program
+    delay(1500);                                //Wait for motor to turn the number of steps instructed before progressing with program
 
     //Sending response to rPi: message = (ID,DATA_POINTS,STEPS;PRESSURE;CURRENT_ERROR;PRESSURE_ERROR;)
+    cli();
     Serial.print("1,4,");
     Serial.print(nSteps);
     Serial.print(";");
@@ -636,21 +639,26 @@ void openGripper(int pulser, int setPreassure){
     Serial.print(pressureError);
     Serial.println(";");
     nSteps = 0;                                  //resets the counter (amount of steps) that will be sent to the rPi
+    sei();
 }
 
 
 void pushSolenoid(){
   digitalWrite(SOL,HIGH);                       //outputs 5V, engaging solenoid
+  cli();
   Serial.print("2,1,");
   Serial.print("1");
   Serial.println(";");
+  sei();
 }
      
 void releaseSolenoid(){
   digitalWrite(SOL,LOW);                         //outputs 0V, disengaging solenoid
+  cli();
   Serial.print("3,1,");
   Serial.print("0");
   Serial.println(";");
+  sei();
 }            
 
 
