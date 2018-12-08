@@ -1,5 +1,4 @@
-from picamera import PiCamera
-from picamera.array import PiRGBArray
+
 from time import sleep
 import math
 import numpy as np
@@ -22,11 +21,13 @@ class Camera:
         self.edgeX = (3280 - self.width)/2
         self.edgeY = (2464 - self.width)/2
         self.threshold = 15
-        self.cameraApproved = False
+        self.correct_pos = False
         if not noCam:
+            from picamera import PiCamera
+            from picamera.array import PiRGBArray
             self.camera = PiCamera()
             self.camera.resolution = (3280, 2464)
-            #self.camera.rotation = 180
+            #self.camera.rotation = 90
             self.camera.zoom = (0.4, 0.4, 0.2, 0.2)
             self.raw = PiRGBArray(self.camera)
             log.camera.info("Camera initialized!")
@@ -43,8 +44,8 @@ class Camera:
     Extracts both lines and points from the image. 
     """
 
-    def cableInsertion(self, debugPrint = False, specificPic = None):
-        self.cameraApproved = False
+    def evaluate(self, debugPrint = False, specificPic = None):
+        self.correct_pos = False
 		#Use this to use the captured picture and the other one for a specific file
         if specificPic is None:
             GPIO.output(17, GPIO.HIGH)
@@ -75,6 +76,7 @@ class Camera:
         rhoVer = []
         thetaHor = []
         thetaVer = []
+        cv2.imwrite('test.jpg',edged)
         if lines is not None:
             for i in range(len(lines)):
                 rho = lines[i][0][0]
@@ -144,7 +146,7 @@ class Camera:
                 print(rho)
                 print(theta)
                 print()
-                cv2.line(img,(x1,y1),(x2,y2),(0,0,255),2)
+                cv2.line(img,(x1,y1),(x2,y2),(255,255,0),10)
             if theta % (math.pi/2) > 0.001:
                 if theta % (math.pi/2)>(math.pi/4):
                     theta = (math.pi/2) - theta
@@ -152,7 +154,10 @@ class Camera:
                     theta = theta % (math.pi/2)
                 thetaSum += theta
                 thetas += 1
-        thetaZ = thetaSum/thetas
+        if thetas > 0:
+            thetaZ = thetaSum/thetas
+        else:
+            thetaZ = 0
         p1 = self.line_intersection(finalLines[1], finalLines[3])
         p2 = self.line_intersection(finalLines[0], finalLines[3])
         p3 = self.line_intersection(finalLines[1], finalLines[2])
@@ -176,29 +181,31 @@ class Camera:
         dx = (dist1[0] + dist2[0] + dist3[0] + dist4[0])/4
         dy = (dist1[1] + dist2[1] + dist3[1] + dist4[1])/4
         if debugPrint:
-            cv2.circle(img,p1,10,(0,255,0),2)
-            cv2.circle(img,p2,10,(0,255,0),2)
-            cv2.circle(img,p3,10,(0,255,0),2)
-            cv2.circle(img,p4,10,(0,255,0),2)
-            cv2.circle(img,(640, 382),10,(255,0,0),2)
-            cv2.circle(img,(2640, 2082),10,(255,0,0),2)
-            cv2.circle(img,(2640, 382),10,(255,0,0),2)
-            cv2.circle(img,(640, 2082),10,(255,0,0),2)
-            
-            cv2.circle(img,p1new,10,(255,0,255),2)
-            cv2.circle(img,p2new,10,(255,0,255),2)
-            cv2.circle(img,p3new,10,(255,0,255),2)
-            cv2.circle(img,p4new,10,(255,0,255),2)
-            
-            cv2.line(img,mid,(int(mid[0] - dx), int(mid[1] - dy)),(255,0,0),2)
-            cv2.imwrite('test.jpg',edged)
-            picSplit = specificPic.split('.')
-            printString = 'hough' + picSplit[1] + '.jpg'
-            cv2.imwrite(printString,img)
+            cv2.circle(img,p1,30,(0,0,255),10)
+            cv2.circle(img,p2,30,(0,0,255),10)
+            cv2.circle(img,p3,30,(0,0,255),10)
+            cv2.circle(img,p4,30,(0,0,255),10)
+            cv2.circle(img,(640, 382),30,(0,255,0),10)
+            cv2.circle(img,(2640, 2082),30,(0,255,0),10)
+            cv2.circle(img,(2640, 382),30,(0,255,0),10)
+            cv2.circle(img,(640, 2082),30,(0,255,0),10)
+            """
+            cv2.circle(img,p1new,10,(255,0,255),10)
+            cv2.circle(img,p2new,10,(255,0,255),10)
+            cv2.circle(img,p3new,10,(255,0,255),10)
+            cv2.circle(img,p4new,10,(255,0,255),10)
+            """
+            cv2.line(img,mid,(int(mid[0] - dx), int(mid[1] - dy)),(0,255,0),15)
+            if specificPic:
+                picSplit = specificPic.split('.')
+                printString = 'hough' + picSplit[1] + '.jpg'
+                cv2.imwrite(printString,img)
+            else:
+                cv2.imwrite("hough.jpg",img)
         if dx <= self.threshold and dy <= self.threshold:
             dx = 0
             dy = 0
-            self.cameraApproved = True
+            self.correct_pos = True
         
         return thetaZ, -(dx/self.width*13.7), -(dy/self.width*13.7)
 

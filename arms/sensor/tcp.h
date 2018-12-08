@@ -83,7 +83,7 @@ extern int GetCalibrationInfo(SOCKET_HANDLE *socket);
 extern int16 swap_int16(int16 val);
 extern void SwapFTResponseBytes(FTResponse * r);
 extern int ReadFT(SOCKET_HANDLE * socket, FTResponse * r);
-extern double* ShowResponse(FTResponse * r);
 extern void sensorConnect(char * ipaddr);
 extern void sensorDisconnect(void);
 extern DResponse sensorRead(void);
+extern void ping(void);

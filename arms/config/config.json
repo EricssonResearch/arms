@@ -7,9 +7,38 @@
       "level": "warning"
     }
   },
+ "socket": {
+	"abb": {
+		"host": "192.168.125.1",
+		"port": 5000
+		}
+	},		
+ "uart_config": {
+    "port" : "/dev/ttyACM0",
+    "baudrate": 9600,
+    "bytesize": 8,
+    "parity": "N",
+    "stopbits": 1,
+    "timeout": 2,             
+    "xonxoff":0,                
+    "rtscts": 0,                 
+    "dsrdtr":0 ,                
+    "writeTimeout": 2,
+    "sleeptime": 0.1
+    },
+    
+   "arduino_config": {
+    "adjustment_pulses" : 50 ,
+    "upper_bound" : 1.05  ,
+    "upper_bias" : 15 ,
+    "lower_bound" : 0.95 ,
+    "lower_bias" : 15, 
+    "max_recursion" : 7
+    
+    },
 "sensor_config": {
-  "angle": 135,
-  "ip": "192.168.1.1",
-  "switchZ": false
+  "angle": 45,
+  "ip": "192.168.125.7",
+  "switchZ": true
   } 
 }

@@ -113,7 +113,7 @@ class SocketClient:
         try:
             # 1. step: Send the length of the original message.
             self.sock.sendall(b'a%d\n' % length)
-
+            
             # 2. step: Send the original message.
             self.sock.sendall(data.encode())
         except (socket.error, socket.timeout) as e:

@@ -171,11 +171,21 @@ void sensorConnect(char * ipaddr){
 	}
 	ShowCalibrationInfo(&calibrationResponse);
 	
-	MySleep(2000);
+	MySleep(1000);
 }
 
 void sensorDisconnect(void){
 	Close(&socketHandle);
+}
+
+void ping(void)
+{
+	int readSuccess;
+	FTResponse ftResponse;
+	readSuccess = ReadFT(&socketHandle, &ftResponse);
+	if (readSuccess != 0) {
+		fprintf(stderr, "Could not read F/T data, error code: %d\r\n", readSuccess);
+	}
 }
 
 DResponse sensorRead(void)
@@ -185,7 +195,6 @@ DResponse sensorRead(void)
 	  // To allow user to read calibration information sent by Ethernet DAQ
 
 
-	unsigned int i;
 	int readSuccess;
 	DResponse dResponse;
 	FTResponse ftResponse;
@@ -211,12 +220,13 @@ DResponse sensorRead(void)
 
 int main()
 {
-	sensorConnect("192.168.1.1");
+	/*sensorConnect("192.168.1.1");
+	sensorConnect("127.0.0.1");
 	
 	DResponse dResponse;
 	dResponse = sensorRead();
 	fprintf(stdout, "%f\r\n", dResponse.Fx);
-	sensorDisconnect();
+	sensorDisconnect();*/
 	/*
 	char * argv[2];
 	argv[1] = "192.168.1.1";
